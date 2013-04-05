@@ -1,0 +1,3 @@
+[submodule "briz"]
+	path = briz
+	url = git://github.com/tbereau/briz.git
