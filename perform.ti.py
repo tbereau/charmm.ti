@@ -48,7 +48,7 @@ parser.add_argument('--num', dest='numproc', type=int, default=1,
                   help='Number of procs for each job submitted to remote')
 parser.add_argument('--sub', dest='submit', action='store_true',
                   help='run one cycle through collection of lambda values and exit.')
-parser.add_argument('--dir', dest='remdir', type=str, default="",
+parser.add_argument('--dir', dest='subdir', type=str, default="",
                   help='set remote directory to collect files from')
 
 args = parser.parse_args()
@@ -67,6 +67,9 @@ if args.nsteps < 0 or args.nequil < 0 or args.nsteps < args.nequil:
   exit(1)
 
 print "# Parameters: nsteps=%d; nequil=%d" % (args.nsteps, args.nequil)
+
+# Reference folder for remote
+bucketDir = "bucket"
 
 ################ FUNCTIONS ################
 def die(arg):
@@ -261,6 +264,9 @@ def saveToFile(data, filename):
 def getSubName(simCounter):
   return "ti" + str(rmtChm.subdir[3:]) + str("%05d" % simCounter)
 
+def getSubSubDir(lambdai, lambdan, lambdaf):
+  return "%.6f.%.6f.%.6f.%s" % (lambdai, lambdan, lambdaf, args.ti)
+
 def runCHARMMScript(inpFile, outFile, simCounter, 
   dependID=0, description="", noMPI=False):
   # Run/submit CHARMM script. Returns -1*(exit code) if we run it locally or job ID
@@ -271,7 +277,8 @@ def runCHARMMScript(inpFile, outFile, simCounter,
     if inpFile in lambdaVals['submitted']:
       return 0, simCounter
     # Generate submission script (part 1: calls charmm)
-    chmSubScript = rmtChm.generateCharmmJob(inpFile, outFile)
+    chmSubScript = rmtChm.generateCharmmJob(inpFile, outFile, 
+      otherInpDir=bucketDir, email=False)
     chmSubFile   = inpFile[:inpFile.rfind(".")] + ".sub"
     saveToFile(chmSubScript, chmSubFile)
     # Generate submission script (part 2: invokes qsub)
@@ -280,7 +287,7 @@ def runCHARMMScript(inpFile, outFile, simCounter,
     if noMPI:
       numProc      = 1
     retvalue = rmtChm.submitJob(subName, numProc, 
-      rmtChm.remdir + "/" + chmSubFile, dependID)
+      rmtChm.remdir + "/" + rmtChm.subsubdir + "/" + chmSubFile, dependID)
     lambdaVals['submitted'].append(inpFile)
     lambdaVals['jobID'][inpFile] = retvalue
     simCounter += 1
@@ -466,8 +473,6 @@ def extractEnergyDiff(trajFile1, trajFile2):
   f.write("DIFFLC = " + str(std) + "\n")
   f.write("PERTRES> . . . . . EPRTOT= " + str(avg) + "\n")
   f.close()
-  if args.remote:
-    rmtChm.putFile(retName)
   return retName
 
 
@@ -483,6 +488,9 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
       lambda_n = 0.0
     if lambda_f == 1.0:
       lambda_n = 1.0
+  # Only for args.remote -- subdirectory of the submitted simulation
+  if args.remote:
+    rmtChm.setSubSubDir(getSubSubDir(lambda_i, lambda_n, lambda_f))
   if args.ti in ['pc', 'pcsg']:
     # Scale charges
     scaleChargesInTop('%.6f' % lambda_i)
@@ -493,10 +501,10 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
     scaleMTPInLpun('%.6f' % lambda_f)
   print "# lambda: (%.6f - %.6f)..." % (lambda_i, lambda_f),
   sys.stdout.flush()
-  inpFiles = []
-  outFiles = []
   if args.remote:
     print ""
+  inpFiles  = []
+  outFiles  = []
   trjFile   = getTrjFile(lambda_i, lambda_n, lambda_f)
   inpScript = generateCHARMMScript(lambda_i, lambda_n, lambda_f, nstep, nequil)
   inpFile   = 'tmp.perform.ti.charmm.script.'+ str('%.6f' % lambda_i)+ '.' + \
@@ -517,6 +525,14 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
         rmtChm.localFileExists(trjFile) ) ) and \
       inpFile not in lambdaVals['submitted']:
       lambdaVals['submitted'].append(inpFile)
+      jobReturn=0
+    elif rmtChm.remoteFileExists(outFile) and \
+      (args.ti in ['pc','vdw'] or (args.ti in ['pcsg','mtp'] and \
+        rmtChm.remoteFileExists(trjFile) ) ) and \
+      inpFile not in lambdaVals['submitted']:
+      lambdaVals['submitted'].append(inpFile)
+      rmtChm.consistentAndGet(outFile)
+      rmtChm.getFile(trjFile)
       jobReturn=0
   saveToFile(inpScript, inpFile)
   jobReturn, simCounter = runCHARMMScript(inpFile, outFile, simCounter)
@@ -550,11 +566,19 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
         if rmtChm.localFileExists(outReadFile):
           lambdaVals['submitted'].append(inpReadFile)
         else:
-          # We need a new run. Transfer the trj file in case it's not there.
-          if rmtChm.remoteFileExists(trjFile) is False and \
-              rmtChm.localFileExists(trjFile):
-            rmtChm.putFile(trjFile)
-            jobReturn = 0
+          # Check if the run exists on the remote server
+          if rmtChm.consistentAndGet(outReadFile):
+            # No need for a new simulation
+            lambdaVals['submitted'].append(inpReadFile)
+          else:
+            # We'll need a simulation. Don't make it depend on previous
+            # simulation in case the trj file is present.
+            if rmtChm.remoteFileExists(trjFile):
+              jobReturn = 0
+            else:
+              if rmtChm.localFileExists(trjFile):
+                rmtChm.putFile(trjFile)
+                jobReturn = 0
       jobTmpReturn, simCounter = runCHARMMScript(inpReadFile, outReadFile, 
         simCounter, dependID=jobReturn, noMPI=True)
     for i in [1,2]:
@@ -602,10 +626,8 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
             rmtChm.delFile(outFile)
             return False, simCounter
       lambdaVals['completed'].append(outFile)
-  for oFile in outFiles:
-    # Delete remote files to prevent them from taking space.
-    if rmtChm.remoteFileExists(oFile):
-      rmtChm.delFile(oFile)
+  if args.remote:
+    rmtChm.delRemoteSubSubDir()      
   if checkTIConvergence(outFile):
     lambdaVals['done'][index] = True
     lambdaVals['energy'][index] = extractWindowEnergy(outFile)
@@ -635,8 +657,9 @@ def allTIDone():
 if args.remote:
   # Connect to the server
   rmtChm = charmm.RunCharmmRemotely(server=args.remote, 
-    subdir=args.remdir)
-  # Copy some files
+    subdir=args.subdir)
+  # Copy some files to subfolder 'bucket'
+  rmtChm.setSubSubDir(bucketDir)
   rmtChm.putFile(args.tps)
   for myFile in args.top:
     rmtChm.putFile(myFile)
@@ -686,8 +709,6 @@ while allDone is False:
         nequil=args.nequil, simCounter=simCounter)
       if status == True:
         newAnalysis = True
-      if args.submit is False:
-        time.sleep(60)
   if args.submit ==  True:
     print "# Submitted all simulations."
     print "# Remote directory: %s. " % (rmtChm.getDir())
@@ -711,6 +732,6 @@ print "# %.6f - %.6f: %9.5f kcal/mol" % (lambdaVals['initial'][0],
   lambdaVals['final'][-1], totalEnergy)
 
 # Remove remote directory
-rmtChm.delRemoteDir()
+rmtChm.delRemoteSubDir()
 
 print "# Normal termination"
