@@ -8,21 +8,45 @@ numproc=1
 PARFILES=()
 topfile=
 TOPFILES=()
-slv=solvent.shifted.pdb
+solute=
+solvent=
+lpun=
+nsteps=20000
+nequil=10000
+remote=
+SIMTYPES=("vdw" "pcsg" "mtp")
+lambda_i=0.0
+lambda_step=0.02
+lambda_f=1.0
 
 function show_help 
 {
-  echo "Usage: $0 [-c charmm] [-n numProc] [-p file.par]"
+  echo -ne "Usage: \n$0 [-c charmm] [-n numProc] [-p file.par] <-t file.top>\n\
+    [-q file.top] <-o solute.pdb> [-l solvent.pdb]\n\
+    [-m file.lpun] [-a NSTEPS] [-e NEQUIL] [-r remote.cluster]\n\
+    [-i lambda_i] [-d lambda_step] [-f lambda_f]\n"
 }
 
-function die
+function exists_or_die
 {
-  echo $1
-  exit 1
+  [ -z $1 ] && echo "Missing file $2" && exit 1
+}
+
+function contains() {
+    local n=$#
+    local value=${!n}
+    for ((i=1;i < $#;i++)) {
+        if [ "${!i}" == "${value}" ]; then
+            echo "y"
+            return 0
+        fi
+    }
+    echo "n"
+    return 1
 }
 
 OPTIND=1
-while getopts "h?:c:n:p:t:q:" opt; do
+while getopts "h?:c:n:p:t:q:o:l:m:g:e:r:i:d:f:" opt; do
   case "$opt" in
     h|\?)
       show_help
@@ -37,48 +61,79 @@ while getopts "h?:c:n:p:t:q:" opt; do
       ;;
     p)
       PARFILES+=("--par $OPTARG")
+      echo "option PARFILES: ${PARFILES[@]}"
       ;;
     t)
       topfile=$OPTARG
+      echo "option topfile: $topfile"
       ;;
     q)
       TOPFILES+=("--top $OPTARG")
+      echo "option TOPFILES: ${TOPFILES[@]}"
+      ;;
+    o)
+      solute=$OPTARG
+      echo "option solute: $solute"
+      ;;
+    l)
+      solvent="--slv $OPTARG"
+      echo "option solvent: $solvent"
+      ;;
+    m)
+      lpun="--lpun $OPTARG"
+      echo "option lpun: $lpun"
+      ;;
+    g)
+      nsteps=$OPTARG
+      echo "option nsteps: $nsteps"
+      ;;
+    e)
+      nequil=$OPTARG
+      echo "option nequil: $nequil"
+      ;;
+    r)
+      remote="--rem $OPTARG"
+      echo "option remote: $remote"
+      ;;
+    i)
+      lambda_i=$OPTARG
+      echo "option lambda_i: $lambda_i"
+      ;;
+    d)
+      lambda_step=$OPTARG
+      echo "option lambda_step: $lambda_step"
+      ;;
+    f)
+      lambda_f=$OPTARG
+      echo "option lambda_f: $lambda_f"
       ;;
   esac
 done
 shift $((OPTIND-1)) # Shift off the options
 
-echo ${PARFILES[@]}
-[ -z $topfile ] && die "Missing topology file for solute"
-exit
+exists_or_die $topfile "topfile"
+exists_or_die $solute "solute"
+exists_or_die $lpun "lpun"
 
-# Vacuum simulations
-# ~/hamm/scripts/perform.ti.py --chm ~/soft/charmm.c36b1.mtpl.w.forces --tps acetone.top --top ~/soft/c36b1.mtpl.w.forces/toppar/top_all27_prot_na.rtf --par hamm.opt.par --par ~/soft/c36b1.mtpl.w.forces/toppar/par_all27_prot_na.prm --ti pcsg --slu acetone.pdb --lpun acetone.lpun --nst 20000 --neq 10000 --rem verdi --lmb 0.0 0.02 1.0 --sub > ti.pcsg.2ns.dat| tee
 
-# Water simulations
-for sim in vdw pcsg mtp; do
-  echo "Submitting $sim"
+for simtype in ${SIMTYPES[@]}
+do
+  filename=ti.$simtype.$nsteps.$lambda_step.out
+  echo "Running $simtype; saving output to $filename"
   # Submit jobs
   $pyScriptName \
-    # CHARMM executable
     --chm $charmm \
-    # Topology file of solute
     --tps $topfile \
-    # Add list of top files
     ${TOPFILES[@]} \
-    # Add list of par files
     ${PARFILES[@]} \
-    --ti $sim \
-    --slu $1.pdb \
-    --lpun $1.lpun \
-    --nst 20000 \
-    --neq 10000 \
-    --rem verdi \
-    --lmb 0.0 0.02 1.0 \
-    --slv $slv \
-    --sub \
-    --num $numproc > ti.$sim.2ns.dat | tee
+    --ti $simtype \
+    --slu $solute \
+    $solvent \
+    $lpun \
+    --nst $nsteps \
+    --neq $nequil \
+    $remote \
+    --lmb $lambda_i $lambda_step $lambda_f \
+    --num $numproc > $filename
 done
-
-
 
