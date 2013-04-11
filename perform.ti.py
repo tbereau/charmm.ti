@@ -681,6 +681,10 @@ if args.remote:
     rmtChm.putFile(args.slv)
   if args.lpun:
     rmtChm.putFile(args.lpun)
+else:
+  if args.submit:
+    print "Error. Can't submit without remote."
+    exit(1)
 
 # Initialize lambda windows
 lambdaVals = {}
