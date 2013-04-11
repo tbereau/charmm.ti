@@ -54,10 +54,12 @@ while getopts "h?:c:n:p:t:q:o:l:m:g:e:r:i:d:f:" opt; do
       ;;
     c)
       charmm=$OPTARG
+      echo "option charmm: $charmm"
       ;;
     n)
       numproc=$OPTARG
       [ $numproc -lt 1 ] && die "Error in number of CPUs"
+      echo "option numproc: $numproc"
       ;;
     p)
       PARFILES+=("--par $OPTARG")

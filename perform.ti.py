@@ -522,18 +522,24 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
     # Don't submit new run if the file is stored locally
     if rmtChm.localFileExists(outFile) and \
       (args.ti in ['pc','vdw'] or (args.ti in ['pcsg','mtp'] and \
-        rmtChm.localFileExists(trjFile) ) ) and \
-      inpFile not in lambdaVals['submitted']:
-      lambdaVals['submitted'].append(inpFile)
+        rmtChm.trjfileConsistent(trjFile) ) ):
+      if inpFile not in lambdaVals['submitted']:
+        lambdaVals['submitted'].append(inpFile)
       jobReturn=0
     elif rmtChm.remoteFileExists(outFile) and \
       (args.ti in ['pc','vdw'] or (args.ti in ['pcsg','mtp'] and \
-        rmtChm.remoteFileExists(trjFile) ) ) and \
-      inpFile not in lambdaVals['submitted']:
-      lambdaVals['submitted'].append(inpFile)
+        rmtChm.trjfileConsistent(trjFile) ) ):
+      if inpFile not in lambdaVals['submitted']:
+        lambdaVals['submitted'].append(inpFile)
       rmtChm.consistentAndGet(outFile)
       rmtChm.getFile(trjFile)
       jobReturn=0
+    else:
+      if inpFile in lambdaVals['jobID']:
+        if not rmtChm.jobIsRunning(lambdaVals['jobID'][inpFile]):
+          print "delete",lambdaVals['jobID'][inpFiles[j]]," ",inpFile
+          del lambdaVals['jobID'][inpFile]
+          lambdaVals['submitted'].remove(inpFile)        
   saveToFile(inpScript, inpFile)
   jobReturn, simCounter = runCHARMMScript(inpFile, outFile, simCounter)
   if jobReturn < 0:
@@ -564,19 +570,26 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
       if args.remote:
         # Don't submit new run if the file is stored locally
         if rmtChm.localFileExists(outReadFile):
-          lambdaVals['submitted'].append(inpReadFile)
+          if inpReadFile not in lambdaVals['submitted']:  
+            lambdaVals['submitted'].append(inpReadFile)
         else:
           # Check if the run exists on the remote server
           if rmtChm.consistentAndGet(outReadFile):
             # No need for a new simulation
-            lambdaVals['submitted'].append(inpReadFile)
+            if inpReadFile not in lambdaVals['submitted']:  
+              lambdaVals['submitted'].append(inpReadFile)
           else:
             # We'll need a simulation. Don't make it depend on previous
             # simulation in case the trj file is present.
             if rmtChm.remoteFileExists(trjFile):
-              jobReturn = 0
+              # Check that it's consistent: download the file and run a
+              # catdcd.
+              rmtChm.getFile(trjFile)
+              if rmtChm.trjfileConsistent(trjFile):
+                jobReturn = 0
             else:
-              if rmtChm.localFileExists(trjFile):
+              # Check integrity of trjfile
+              if rmtChm.trjfileConsistent(trjFile):
                 rmtChm.putFile(trjFile)
                 jobReturn = 0
       jobTmpReturn, simCounter = runCHARMMScript(inpReadFile, outReadFile, 
@@ -590,12 +603,10 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
             allFilesFinished = False
             # Don't analyze anything unless the files are ready
             if rmtChm.remoteFileExists(outFiles[j]) == False:
-              # Check that a simulation is still running. Otherwise we restart it.
-              if rmtChm.remoteFileExists(outFiles[j]) == False:
-                if inpFiles[j] in lambdaVals['jobID']:
-                  if not rmtChm.jobIsRunning(lambdaVals['jobID'][inpFiles[j]]):
-                    del lambdaVals['jobID'][inpFiles[j]]
-                    lambdaVals['submitted'].remove(inpFiles[j])
+              if inpFiles[j] in lambdaVals['jobID']:
+                if not rmtChm.jobIsRunning(lambdaVals['jobID'][inpFiles[j]]):
+                  del lambdaVals['jobID'][inpFiles[j]]
+                  lambdaVals['submitted'].remove(inpFiles[j])
             else:
               if rmtChm.consistentAndGet(outFiles[j]) is False:
                 lambdaVals['submitted'].remove(inpFiles[j])
@@ -717,7 +728,7 @@ while allDone is False:
     exit(0)
   if newAnalysis == False:
     # Sleep for a while
-    time.sleep(600)
+    time.sleep(60)
   allDone = allTIDone()
 
 # Print results
