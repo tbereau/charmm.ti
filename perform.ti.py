@@ -743,6 +743,7 @@ print "# %.6f - %.6f: %9.5f kcal/mol" % (lambdaVals['initial'][0],
   lambdaVals['final'][-1], totalEnergy)
 
 # Remove remote directory
-rmtChm.delRemoteSubDir()
+if args.remote:
+  rmtChm.delRemoteSubDir()
 
 print "# Normal termination"
