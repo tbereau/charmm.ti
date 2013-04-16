@@ -240,6 +240,9 @@ FAST OFF
 
 %s
 
+ENERGY NBXMOD 5 ATOM CDIEL EPS 1.0 SHIFt VATOM VDISTANCE -
+  VSWItch CUTNb 14.0 CTOFnb 12. CTONnb 11. E14Fac 1.0 
+
 %s
   %s
   %s
@@ -532,7 +535,8 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
       if inpFile not in lambdaVals['submitted']:
         lambdaVals['submitted'].append(inpFile)
       rmtChm.consistentAndGet(outFile)
-      rmtChm.getFile(trjFile)
+      if args.ti in ['pcsg','mtp']:
+        rmtChm.getFile(trjFile)
       jobReturn=0
     else:
       if inpFile in lambdaVals['jobID']:
@@ -692,8 +696,8 @@ lambdaVals['initial'] = [args.lmb[0]]
 lambdaVals['final'] = []
 lambdaVals['done'] = [False]
 lambdaVals['energy'] = [99999.9]
-lmb_cur = args.lmb[0] + args.lmb[1]/2.
-while lmb_cur < args.lmb[2]:
+lmb_cur = args.lmb[0] + args.lmb[1]
+while lmb_cur < args.lmb[2] - args.lmb[1]:
   lambdaVals['initial'].append(lmb_cur)
   lambdaVals['final'].append(lmb_cur)
   lambdaVals['done'].append(False)
