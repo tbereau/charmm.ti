@@ -198,7 +198,7 @@ CLOSE UNIT 40
   IPRFRQ 0 INBFRQ -1 IMGFRQ 250 -
   TCONST TCOUPL 1.0 TREFE 298.0 -
   LSTART %s  LAMBDA %s  LSTOP %s  PSTART  %s -
-  PSTOP  %s  PWIND LINCR %s %s -''' % (str(nstep), str('%.6f' % lambdai), 
+  PSTOP  %s  PSLOW LINCR %s %s -''' % (str(nstep), str('%.6f' % lambdai), 
     str('%.6f' % lambdan), str('%.6f' % lambdaf), str(nequil), 
     str(nstep), str('%.6f' % (lambdaf-lambdai)), noPSSPSnippet)
   if args.ti in ['pcsg','mtp'] and sim == False:
