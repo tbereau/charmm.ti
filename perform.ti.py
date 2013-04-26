@@ -201,6 +201,9 @@ CLOSE UNIT 40
   PSTOP  %s  PSLOW LINCR %s %s -''' % (str(nstep), str('%.6f' % lambdai), 
     str('%.6f' % lambdan), str('%.6f' % lambdaf), str(nequil), 
     str(nstep), str('%.6f' % (lambdaf-lambdai)), noPSSPSnippet)
+  if args.slv:
+    procSnippet = procSnippet + '''
+  PCONst PEXTernal PMASs 500 PREF 1.0 PGAMma 20.0 -'''
   if args.ti in ['pcsg','mtp'] and sim == False:
     procSnippet = \
 '''OPEN READ UNIT 50 NAME %s
