@@ -545,8 +545,10 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
       if inpFile in lambdaVals['jobID']:
         if not rmtChm.jobIsRunning(lambdaVals['jobID'][inpFile]):
           print "delete",lambdaVals['jobID'][inpFile]," ",inpFile
-          del lambdaVals['jobID'][inpFile]
-          lambdaVals['submitted'].remove(inpFile)        
+          if inpFile in lambdaVals['jobID']:
+            lambdaVals['jobID'].remove(inpFile)
+          if inpFile in lambdaVals['submitted']:
+            lambdaVals['submitted'].remove(inpFile)        
   saveToFile(inpScript, inpFile)
   jobReturn, simCounter = runCHARMMScript(inpFile, outFile, simCounter)
   if jobReturn < 0:
