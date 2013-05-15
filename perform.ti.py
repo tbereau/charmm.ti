@@ -546,7 +546,7 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
         if not rmtChm.jobIsRunning(lambdaVals['jobID'][inpFile]):
           print "delete",lambdaVals['jobID'][inpFile]," ",inpFile
           if inpFile in lambdaVals['jobID']:
-            lambdaVals['jobID'].remove(inpFile)
+            del lambdaVals['jobID'][inpFile]
           if inpFile in lambdaVals['submitted']:
             lambdaVals['submitted'].remove(inpFile)        
   saveToFile(inpScript, inpFile)
