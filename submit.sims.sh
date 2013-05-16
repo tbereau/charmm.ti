@@ -23,7 +23,7 @@ function show_help
 {
   echo -ne "Usage: \n$0 [-c charmm] [-n numProc] [-p file.par] <-t file.top>\n\
     [-q file.top] <-o solute.pdb> [-l solvent.pdb]\n\
-    [-m file.lpun] [-a NSTEPS] [-e NEQUIL] [-r remote.cluster]\n\
+    [-m file.lpun] [-g NSTEPS] [-e NEQUIL] [-r remote.cluster]\n\
     [-i lambda_i] [-d lambda_step] [-f lambda_f]\n"
 }
 
