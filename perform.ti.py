@@ -35,7 +35,7 @@ parser.add_argument('--lpun', dest='lpun', type=str,
 parser.add_argument('--lmb', dest='lmb', type=float, nargs=3,
                   default=[0.0, 0.1, 1.0],
                   help='lambda spacing for TI: l_min, l_space, l_max. ' +
-                       'Default: [0.0, 0.1, 1.0]')
+                       'Default: 0.0 0.1 1.0')
 parser.add_argument('--nst', dest='nsteps', type=int,
                   default=20000,
                   help='Number of MD integration steps for each window')
@@ -50,6 +50,8 @@ parser.add_argument('--sub', dest='submit', action='store_true',
                   help='run one cycle through collection of lambda values and exit.')
 parser.add_argument('--dir', dest='subdir', type=str, default="",
                   help='set remote directory to collect files from')
+parser.add_argument('--back', dest='backward', action='store_true',
+                  help='run backward TI calculation (default: off -> forward)')
 
 args = parser.parse_args()
 
@@ -61,6 +63,7 @@ if args.ti == 'mtp':
 if args.lmb[0] < 0.0 or args.lmb[2] > 1.0 or args.lmb[1] < 0.0 or \
   args.lmb[1] > args.lmb[2]-args.lmb[0]:
   print "Error: Lambda spacing values out of bounds."
+  print "If running a backward simulation, use corresponding forward bounds with option --back."
   exit(1)
 if args.nsteps < 0 or args.nequil < 0 or args.nsteps < args.nequil:
   print "Error: Number of equilibration/integration steps out of bounds"
@@ -489,11 +492,16 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
   lambda_f = lambdaVals['final'][index]
   delVal   = lambda_f - lambda_i
   lambda_n = delVal/2. + lambda_i
-  if delVal < 1.:
+  if delVal > 0. and delVal < 1.:
     if lambda_i == 0.0:
       lambda_n = 0.0
     if lambda_f == 1.0:
       lambda_n = 1.0
+  elif delVal < 0. and delVal > -1.:
+    if lambda_i == 1.0:
+      lambda_n = 1.0
+    if lambda_f == 0.0:
+      lambda_n = 0.0
   # Only for args.remote -- subdirectory of the submitted simulation
   if args.remote:
     rmtChm.setSubSubDir(getSubSubDir(lambda_i, lambda_n, lambda_f))
@@ -695,17 +703,28 @@ else:
     print "Error. Can't submit without remote."
     exit(1)
 
+# Backward simulation?
+if args.backward:
+  # Swap forward bounds args.lmb[0] and [2]. Invert sign of args.lmb[1].
+  tmp = args.lmb[2]
+  args.lmb[2]  = args.lmb[0]
+  args.lmb[0]  = tmp
+  args.lmb[1] *= -1.
+
 # Initialize lambda windows
 lambdaVals = {}
 lambdaVals['initial'] = [args.lmb[0]]
 lambdaVals['final'] = []
 lambdaVals['done'] = [False]
+# arbitrarily large energy
 lambdaVals['energy'] = [99999.9]
 lmb_cur = args.lmb[0] + args.lmb[1]
-while lmb_cur < args.lmb[2] - args.lmb[1]:
+while (not args.backward and lmb_cur < args.lmb[2] - args.lmb[1]) \
+  or (args.backward and lmb_cur > args.lmb[2] - args.lmb[1]):
   lambdaVals['initial'].append(lmb_cur)
   lambdaVals['final'].append(lmb_cur)
   lambdaVals['done'].append(False)
+  # arbitrarily large energy
   lambdaVals['energy'].append(99999.9)
   lmb_cur += args.lmb[1]
 lambdaVals['final'].append(args.lmb[2])

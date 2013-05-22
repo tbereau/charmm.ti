@@ -16,15 +16,33 @@ nequil=10000
 remote=
 SIMTYPES=("vdw" "pcsg" "mtp")
 lambda_i=0.0
-lambda_step=0.02
+lambda_step=0.1
 lambda_f=1.0
+backward=
+filenamedirection="f"
 
 function show_help 
 {
   echo -ne "Usage: \n$0 [-c charmm] [-n numProc] [-p file.par] <-t file.top>\n\
     [-q file.top] <-o solute.pdb> [-l solvent.pdb]\n\
     [-m file.lpun] [-g NSTEPS] [-e NEQUIL] [-r remote.cluster]\n\
-    [-i lambda_i] [-d lambda_step] [-f lambda_f]\n"
+    [-i lambda_i] [-d lambda_step] [-f lambda_f] [-b]\n\
+    where:\n\
+      -c:  CHARMM executable\n\
+      -n:  number of cores per simulation\n\
+      -p:  CHARMM parameter file(s) (one at a time)\n\
+      -t:  CHARMM topology file\n\
+      -q:  addtl. CHARMM topology file(s) (optional)\n\
+      -o:  solute PDB file\n\
+      -l:  solvent PDB file\n\
+      -m:  MTP lpun file\n\
+      -g:  total number of steps per TI run\n\
+      -e:  number of equilibration steps per TI run\n\
+      -r:  name of remote computer cluster\n\
+      -i:  initial lambda value\n\
+      -d:  lambda window spacing\n\
+      -f:  final lambda value\n\
+      -b:  backward simulation (will flip initial and final lambda values).\n"
 }
 
 function exists_or_die
@@ -46,7 +64,7 @@ function contains() {
 }
 
 OPTIND=1
-while getopts "h?:c:n:p:t:q:o:l:m:g:e:r:i:d:f:" opt; do
+while getopts "h?:c:n:p:t:q:o:l:m:g:e:r:i:d:f:b" opt; do
   case "$opt" in
     h|\?)
       show_help
@@ -109,6 +127,11 @@ while getopts "h?:c:n:p:t:q:o:l:m:g:e:r:i:d:f:" opt; do
       lambda_f=$OPTARG
       echo "option lambda_f: $lambda_f"
       ;;
+    b)
+      backward="--back"
+      filenamedirection="b"
+      echo "option backward simulation turned on"
+      ;;
   esac
 done
 shift $((OPTIND-1)) # Shift off the options
@@ -120,7 +143,7 @@ exists_or_die $lpun "lpun"
 
 for simtype in ${SIMTYPES[@]}
 do
-  filename=ti.$simtype.$nsteps.$lambda_step.out
+  filename=ti.$simtype.$filenamedirection.$nsteps.$lambda_step.out
   echo "Running $simtype; saving output to $filename"
   # Submit jobs
   $pyScriptName \
@@ -136,6 +159,7 @@ do
     --neq $nequil \
     $remote \
     --lmb $lambda_i $lambda_step $lambda_f \
-    --num $numproc > $filename
+    --num $numproc \
+    $backward > $filename
 done
 
