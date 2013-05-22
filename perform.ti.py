@@ -375,7 +375,7 @@ def subdivideLambdaWindow(index):
   initVal = lambdaVals['initial'][index]
   finalVal = lambdaVals['final'][index]
   delVal = finalVal - initVal
-  if delVal < 1e-6:
+  if abs(delVal) < 1e-6:
     print "Can't further refine lambda spacing."
     exit(1)
   lambdaVals['initial'].insert(index+1,initVal + delVal/2.)
