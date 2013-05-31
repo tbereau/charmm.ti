@@ -723,8 +723,8 @@ lambdaVals['done'] = [False]
 # arbitrarily large energy
 lambdaVals['energy'] = [99999.9]
 lmb_cur = args.lmb[0] + args.lmb[1]
-while (not args.backward and lmb_cur < args.lmb[2] - args.lmb[1]) \
-  or (args.backward and lmb_cur > args.lmb[2] - args.lmb[1]):
+while (not args.backward and lmb_cur <= args.lmb[2] - args.lmb[1]) \
+  or (args.backward and lmb_cur >= args.lmb[2] - args.lmb[1]):
   lambdaVals['initial'].append(lmb_cur)
   lambdaVals['final'].append(lmb_cur)
   lambdaVals['done'].append(False)
