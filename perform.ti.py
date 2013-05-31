@@ -90,7 +90,7 @@ def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True,
   # (otherwise we use lambda_f).
   trjFile = getTrjFile(lambdai, lambdan, lambdaf)
   topSnippet = ''
-  if args.ti == 'pc' or (args.ti == 'pcsg' and sim == True):
+  if args.ti in ['pc','mtp'] or (args.ti == 'pcsg' and sim == True):
     topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
       getScaleTopFile('%.6f' % lambdai)
   elif (args.ti == 'pcsg' and sim == False):
@@ -99,7 +99,7 @@ def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True,
       lambdaEnergy = lambdai
     topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
       getScaleTopFile('%.6f' % lambdaEnergy)
-  elif args.ti in ['mtp','vdw']:
+  elif args.ti == 'vdw':
     topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
       getScaleTopFile('%.6f' % 0.00)
   for i in range(len(args.top)):
@@ -131,6 +131,10 @@ READ COOR PDB UNIT 10
 CLOSE UNIT 10
 ''' % args.slv
     solventSnippet2 = \
+'''SHAKE FAST WATER SELECT SEGI WAT END
+'''
+    if sim == True:
+      solventSnippet2 += \
 '''COOR STAT
 CALC BOXX = ?XMAX - ?XMIN
 CALC BOXY = ?YMAX - ?YMIN
@@ -139,11 +143,14 @@ CRYSTAL DEFI ORTH @BOXX @BOXY @BOXZ 90. 90. 90.
 CRYSTAL BUILD nope 0
 IMAGE BYRES XCEN 0.0 YCEN 0.0 ZCEN 0.0 SELE ALL END
 
-!NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
-!  FFTX 32 FFTY 32 FFTZ 32 ORDER 6 -
-!  CUTNB 14.0  CTOFNB 12.0  VDW  VSHIFT QCOR 0.0
+NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
+  FFTX 32 FFTY 32 FFTZ 32 ORDER 6 -
+  CUTNB 14.0  CTOFNB 12.0  VDW  VSHIFT QCOR 0.0
 
-SHAKE FAST WATER SELECT SEGI WAT END'''
+CONS HMCM FORCE 5.0 WEIGH REFX 0. REFY 0. REFZ 0. -
+  SELECT SEGI SOLU END
+'''
+
   dcdSnippet = 'NPRINT 1000 NSAVC -1 -'
   if args.ti == 'vdw':
     rscaSnippet = 'PERT SELE SEGI SOLU END \nSCALAR RSCA SET 0. SELE SEGI SOLU END'
@@ -221,7 +228,7 @@ SET NTRAJ 0
 LABEL SNAP
 TRAJ READ
 SET TIME ?TIME
-ENERGY 
+ENERGY CUTNB 99
 INCR NTRAJ BY 1
 IF @NTRAJ .LT. %s GOTO SNAP
 CLOSE UNIT 50
@@ -248,10 +255,10 @@ CLOSE UNIT 10
 FAST OFF
 %s
 
-%s
-
 ENERGY NBXMOD 5 ATOM CDIEL EPS 1.0 SHIFt VATOM VDISTANCE -
   VSWItch CUTNb 14.0 CTOFnb 12. CTONnb 11. E14Fac 1.0 
+
+%s
 
 %s
   %s
@@ -509,11 +516,11 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
   # Only for args.remote -- subdirectory of the submitted simulation
   if args.remote:
     rmtChm.setSubSubDir(getSubSubDir(lambda_i, lambda_n, lambda_f))
-  if args.ti in ['pc', 'pcsg']:
+  if args.ti in ['pc', 'pcsg', 'mtp']:
     # Scale charges
     scaleChargesInTop('%.6f' % lambda_i)
     scaleChargesInTop('%.6f' % lambda_f)
-  elif args.ti == 'mtp':
+  if args.ti == 'mtp':
     # Scale MTPs
     scaleMTPInLpun('%.6f' % lambda_i)
     scaleMTPInLpun('%.6f' % lambda_f)
