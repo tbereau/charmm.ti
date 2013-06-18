@@ -178,7 +178,7 @@ CLOSE UNIT 10
   elif args.ti == 'pcsg':
     if sim == True:
       rscaSnippet = "OPEN WRITE UNIT 50 NAME %s" % trjFile
-      dcdSnippet = 'NPRINT 2 NSAVC 2 IUNCRD 50'
+      dcdSnippet = 'NPRINT 100 NSAVC 100 IUNCRD 50'
     else:
       rscaSnippet = ''
       dcdSnippet = ''
@@ -193,7 +193,7 @@ OPEN UNIT 40 CARD READ NAME %s
 MTP MTPUNIT 40
 CLOSE UNIT 40
 ''' % (trjFile, getScaleLpunFile('%.6f' % lambdai))
-      dcdSnippet = 'NPRINT 2 NSAVC 2 IUNCRD 50'
+      dcdSnippet = 'NPRINT 100 NSAVC 100 IUNCRD 50'
     else:
       lambdaEnergy = lambdaf
       if analyzeLambdai:
