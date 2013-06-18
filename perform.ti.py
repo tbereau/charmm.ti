@@ -232,7 +232,7 @@ ENERGY CUTNB 99
 INCR NTRAJ BY 1
 IF @NTRAJ .LT. %s GOTO SNAP
 CLOSE UNIT 50
-''' % (trjFile, str(int(nstep/2.)))
+''' % (trjFile, str(int(nstep/100.)))
     dcdSnippet = ''
     pressureSnippet = ''
   returnScript = \
