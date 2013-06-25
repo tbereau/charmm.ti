@@ -102,12 +102,13 @@ def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True,
   elif args.ti == 'vdw':
     topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
       getScaleTopFile('%.6f' % 0.00)
-  for i in range(len(args.top)):
-    topFile = args.top[i]
-    if args.remote:
-      if topFile.find("/") != -1:
-        topFile = topFile[topFile.rfind("/")+1:]
-    topSnippet += 'READ RTF CARD APPEND NAME -\n %s\n' % topFile
+  if args.top:
+    for i in range(len(args.top)):
+      topFile = args.top[i]
+      if args.remote:
+        if topFile.find("/") != -1:
+          topFile = topFile[topFile.rfind("/")+1:]
+      topSnippet += 'READ RTF CARD APPEND NAME -\n %s\n' % topFile
   parSnippet = 'READ PARAM CARD        NAME -\n %s\n' % args.par[0]
   for i in range(1,len(args.par)):
     parFile = args.par[i]
@@ -157,8 +158,9 @@ CONS HMCM FORCE 5.0 WEIGH REFX 0. REFY 0. REFZ 0. -
     noPSSPSnippet = 'PSSP -'
   elif args.ti == 'pc':
     addTopFiles = ''
-    for i in range(len(args.top)):
-      addTopFiles += 'READ RTF CARD APPEND NAME -\n %s\n' % args.top[i]
+    if args.top:
+      for i in range(len(args.top)):
+        addTopFiles += 'READ RTF CARD APPEND NAME -\n %s\n' % args.top[i]
     rscaSnippet = \
 '''PERT SELE SEGI SOLU END
 DELETE ATOM SELE ALL END
@@ -700,8 +702,9 @@ if args.remote:
   # Copy some files to subfolder 'bucket'
   rmtChm.setSubSubDir(bucketDir)
   rmtChm.putFile(args.tps)
-  for myFile in args.top:
-    rmtChm.putFile(myFile)
+  if args.top:
+    for myFile in args.top:
+      rmtChm.putFile(myFile)
   for myFile in args.par:
     rmtChm.putFile(myFile)
   rmtChm.putFile(args.slu)
