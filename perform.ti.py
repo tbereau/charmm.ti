@@ -212,14 +212,16 @@ CLOSE UNIT 40
 '''DYNA LEAP STRT NSTEP %s TIMESTEP 0.001 -
   NTRFRQ 100 -
   IPRFRQ 0 INBFRQ -1 IMGFRQ 250 -
-  TCONST TCOUPL 1.0 TREFE 298.0 -
   LSTART %s  LAMBDA %s  LSTOP %s  PSTART  %s -
   PSTOP  %s  PSLOW LINCR %s %s -''' % (str(nstep), str('%.6f' % lambdai), 
     str('%.6f' % lambdan), str('%.6f' % lambdaf), str(nequil), 
     str(nstep), str('%.6f' % (lambdaf-lambdai)), noPSSPSnippet)
   if args.slv:
     procSnippet = procSnippet + '''
-  PCONst PEXTernal PMASs 500 PREF 1.0 PGAMma 20.0 -'''
+  IHTFRQ 0 IEQFRQ 0 -
+  TSTRUCT 298.0 FINALT 298.0 FIRSTT 298.0 -
+  CPT PCONst PREF 1.0 PGAMMA 20.0 PMASs 500 HOOVER -
+  REFT 298.9 TMASS 5000.0 -'''
   if args.ti in ['pcsg','mtp'] and sim == False:
     procSnippet = \
 '''OPEN READ UNIT 50 NAME %s
