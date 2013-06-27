@@ -1,8 +1,10 @@
 #!/usr/bin/env python
-
+#
 # Generate, manage, and analyze TI calculations in CHARMM.
-
-# Tristan BEREAU. March 2013
+#
+# Update: dual topology.
+#
+# Tristan BEREAU. March-June 2013
 
 import sys, os
 import numpy as np
@@ -10,6 +12,7 @@ import math
 import argparse
 import time
 from briz import charmm
+from briz import misc
 
 # Parse command-line options
 parser = argparse.ArgumentParser(description=
@@ -30,8 +33,9 @@ parser.add_argument('--slu', dest='slu', type=str,
                   help='PDB of the solute molecule', required=True)
 parser.add_argument('--slv', dest='slv', type=str, 
                   help='PDB of the solvent (ignore for gas phase)')
-parser.add_argument('--lpun', dest='lpun', type=str,
-                  help='LPUN file of the solute molecule')
+parser.add_argument('--lpun', dest='lpun', type=str, action='append',
+                  help='LPUN file of the solute molecule ' \
+                  + ' (1 by default; 2 if --dual is turned on),')
 parser.add_argument('--lmb', dest='lmb', type=float, nargs=3,
                   default=[0.0, 0.1, 1.0],
                   help='lambda spacing for TI: l_min, l_space, l_max. ' +
@@ -47,19 +51,28 @@ parser.add_argument('--rem', dest='remote', type=str,
 parser.add_argument('--num', dest='numproc', type=int, default=1,
                   help='Number of procs for each job submitted to remote')
 parser.add_argument('--sub', dest='submit', action='store_true',
-                  help='run one cycle through collection of lambda values and exit.')
+                  help='run one cycle through collection of lambda values and exit')
 parser.add_argument('--dir', dest='subdir', type=str, default="",
                   help='set remote directory to collect files from')
 parser.add_argument('--back', dest='backward', action='store_true',
                   help='run backward TI calculation (default: off -> forward)')
+parser.add_argument('--dual', dest='dual', type=str, nargs=3,
+                  help='Dual topology turned on: alchemical transformation MOL1 -> MOL2). ' \
+                  + 'Provide RESNAMEs of MOL1, MOL2, and DUAL. ')
 
 args = parser.parse_args()
-
+# Initialize variables for dual topology
+dualAnn = []
+dualExn = []
 
 if args.ti == 'mtp':
   if args.lpun is None:
-    print "Error: 'mtp' option requires *.lpun file."
+    print "Error: 'mtp' option requires at least one *.lpun file."
     exit(1)
+  else:
+    if len(args.lpun) > 2:
+      print "Error: too many lpun files. Use either 1 or 2 (for --dual)."
+      exit(1)
 if args.lmb[0] < 0.0 or args.lmb[2] > 1.0 or args.lmb[1] < 0.0 or \
   args.lmb[1] > args.lmb[2]-args.lmb[0]:
   print "Error: Lambda spacing values out of bounds."
@@ -68,6 +81,38 @@ if args.lmb[0] < 0.0 or args.lmb[2] > 1.0 or args.lmb[1] < 0.0 or \
 if args.nsteps < 0 or args.nequil < 0 or args.nsteps < args.nequil:
   print "Error: Number of equilibration/integration steps out of bounds"
   exit(1)
+if args.dual:
+  # Look for three RESNAMEs in TOP file.
+  for i in range(0,2):
+    if misc.grep(args.tps,args.dual[i]) == []:
+      print "Error: Can't find residue",args.dual[i],"in",args.tps
+      exit(1)
+  numGroup = 0
+  numAtom  = 0
+  dualFile = misc.readInFromFile(args.tps)
+  seenDual = False
+  # Identify annihilated and exnihilated atoms.
+  for i in range(len(dualFile)):
+    line = dualFile[i].lower()
+    if args.dual[2].lower() in line:
+      seenDual = True
+    if args.dual[0].lower() in line or args.dual[1].lower() in line:
+      seenDual = False
+    if seenDual:
+      if "atom" in line:
+        numAtom += 1
+        if numGroup == 2:
+          dualAnn.append(numAtom)
+        elif numGroup == 3:
+          dualExn.append(numAtom)
+      if "group" in line:
+        numGroup += 1
+  print "# Annihilated atom IDs:",dualAnn
+  print "# Exnihilated atom IDs:",dualExn
+  if numGroup != 3:
+    print "Error: need 3 GROUP statements in ", args.tps
+    exit(1) 
+  
 
 print "# Parameters: nsteps=%d; nequil=%d" % (args.nsteps, args.nequil)
 
@@ -435,7 +480,7 @@ def scaleChargesInTop(lambda_current):
 def scaleMTPInLpun(lambda_current):
   # Scale all multipole moments and store new lpun file
   try:
-    f = open(args.lpun,'r')
+    f = open(args.lpun[0],'r')
     s = f.readlines()
     f.close()
   except IOError, e:
@@ -465,9 +510,9 @@ def getScaleTopFile(lambda_current):
             args.tps[args.tps.rfind('.'):]
 
 def getScaleLpunFile(lambda_current):
-  return "tmp.perform.ti." + args.lpun[:args.lpun.rfind('.')] + \
+  return "tmp.perform.ti." + args.lpun[0][:args.lpun[0].rfind('.')] + \
             '.' + str(lambda_current) + \
-            args.lpun[args.lpun.rfind('.'):]
+            args.lpun[0][args.lpun[0].rfind('.'):]
 
 def extractEnergyDiff(trajFile1, trajFile2):
   trajEne = []
@@ -728,7 +773,8 @@ if args.remote:
   if args.slv:
     rmtChm.putFile(args.slv)
   if args.lpun:
-    rmtChm.putFile(args.lpun)
+    for myFile in args.lpun:
+      rmtChm.putFile(myFile)
 else:
   if args.submit:
     print "Error. Can't submit without remote."
