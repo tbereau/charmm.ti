@@ -134,8 +134,8 @@ CLOSE UNIT 10
     solventSnippet2 = \
 '''SHAKE FAST WATER SELECT SEGI WAT END
 '''
-    if sim == True:
-      solventSnippet2 += \
+    # if sim == True:
+    solventSnippet2 += \
 '''COOR STAT
 CALC BOXX = ?XMAX - ?XMIN
 CRYSTAL DEFI CUBIC @BOXX @BOXX @BOXX 90. 90. 90. 
@@ -144,12 +144,15 @@ IMAGE BYRES XCEN 0.0 YCEN 0.0 ZCEN 0.0 SELE ALL END
 
 NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
   FFTX 32 FFTY 32 FFTZ 32 ORDER 6 -
-  CUTNB 12.0  CTOFNB 11.0 CTONnb 10.0
-
-CONS HMCM FORCE 5.0 WEIGH REFX 0. REFY 0. REFZ 0. -
+  CUTNB 12.0  CTOFNB 11.0 CTONnb 10.0'''
+    if sim == True:
+      solventSnippet2 += \
+'''CONS HMCM FORCE 5.0 WEIGH REFX 0. REFY 0. REFZ 0. -
   SELECT SEGI SOLU END
 '''
-
+  else:
+    # in the gas phase. Turn on Langevin
+    solventSnippet2 += "SCALAR FBETA SET 5. SELE ALL END"
   dcdSnippet = 'NPRINT 1000 NSAVC -1 -'
   if args.ti == 'vdw':
     rscaSnippet = 'PERT SELE SEGI SOLU END \nSCALAR RSCA SET 0. SELE SEGI SOLU END'
@@ -219,7 +222,11 @@ CLOSE UNIT 40
   IHTFRQ 0 IEQFRQ 0 -
   TSTRUCT 298.0 FINALT 298.0 FIRSTT 298.0 -
   CPT PCONst PREF 1.0 PGAMMA 20.0 PMASs 500 HOOVER -
-  REFT 298.9 TMASS 5000.0 -'''
+  REFT 298. TMASS 5000.0 -'''
+  else:
+    # in the gas phase
+    procSnippet = procSnippet + '''
+  TBATH 298. RBUF 0. ILBFRQ 10 FIRSTT 240. -'''
   if args.ti in ['pcsg','mtp'] and sim == False:
     procSnippet = \
 '''OPEN READ UNIT 50 NAME %s
@@ -314,7 +321,12 @@ def runCHARMMScript(inpFile, outFile, simCounter,
     lambdaVals['jobID'][inpFile] = retvalue
     simCounter += 1
   else:
-    sysCommand = args.charmm + " < " + inpFile + " > " + outFile
+    if args.numproc > 1 and noMPI==False:
+      sysCommand = "mpirun -np " + str(args.numproc) + " " + args.charmm \
+                   + " -n " + str(args.numproc) \
+                   + " < " + inpFile + " > " + outFile
+    else:
+      sysCommand = args.charmm + " < " + inpFile + " > " + outFile
     retvalue = -1*abs(int(os.system(sysCommand)))
     checkAbnormalTermination(outFile)
   return retvalue, simCounter
@@ -546,6 +558,11 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
     # Leave the routine if the simulation and analysis is complete
     if outFile in lambdaVals['completed']:
       return False, simCounter
+    # Try downloading the trj file if it's not already there
+    if not rmtChm.trjfileConsistent(trjFile):
+      if args.ti in ['pcsg','mtp']:
+        if rmtChm.remoteFileExists(trjFile):
+          rmtChm.getFile(trjFile)
     # Don't submit new run if the file is stored locally
     if rmtChm.localFileExists(outFile) and \
       (args.ti in ['pc','vdw'] or (args.ti in ['pcsg','mtp'] and \
