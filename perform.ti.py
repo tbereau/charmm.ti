@@ -102,13 +102,13 @@ if args.dual:
       if "atom" in line:
         numAtom += 1
         if numGroup == 2:
-          dualAnn.append(numAtom)
+          dualAnn.append(line.split()[1])
         elif numGroup == 3:
-          dualExn.append(numAtom)
+          dualExn.append(line.split()[1])
       if "group" in line:
         numGroup += 1
-  print "# Annihilated atom IDs:",dualAnn
-  print "# Exnihilated atom IDs:",dualExn
+  print "# Annihilated atom names:",dualAnn
+  print "# Exnihilated atom names:",dualExn
   if numGroup != 3:
     print "Error: need 3 GROUP statements in ", args.tps
     exit(1) 
@@ -166,6 +166,24 @@ def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True,
   solventSnippet1 = ''
   solventSnippet2 = ''
   pressureSnippet = '-'
+  dualSnippet = ''
+  if args.dual:
+    parSnippet += 'BOMLEV -2\n'
+    dualSnippet = 'DEFINE ANN SELE -\n' 
+    for atom in range(len(dualAnn)):
+      dualSnippet += '  ATOM SOLU 1 %s' % dualAnn[atom]
+      if atom+1 < len(dualAnn):
+        dualSnippet += ' .AND. '
+      dualSnippet += ' -\n'
+    dualSnippet += '  END\nDEFINE EXN SELE -\n'
+    for atom in range(len(dualExn)):
+      dualSnippet += '  ATOM SOLU 1 %s' % dualExn[atom]
+      if atom+1 < len(dualExn):
+        dualSnippet += ' .AND. '
+      dualSnippet += ' -\n'
+    dualSnippet += '  END\nDELETE ANGL SELE ANN END SELE EXN END SORT\n'
+    dualSnippet += 'BOMLEV 0\n'
+    dualSnippet += 'SCALAR RSCA SET 0.00 SELE EXN END\n'
   if args.slv:
     pressureSnippet = 'PCONST PINTERNAL PREFERENCE 1.0 -'
     solventSnippet1 = \
@@ -200,7 +218,12 @@ NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
     solventSnippet2 += "SCALAR FBETA SET 5. SELE ALL END"
   dcdSnippet = 'NPRINT 1000 NSAVC -1 -'
   if args.ti == 'vdw':
-    rscaSnippet = 'PERT SELE SEGI SOLU END \nSCALAR RSCA SET 0. SELE SEGI SOLU END'
+    rscaSnippet = 'PERT SELE SEGI SOLU END\n'
+    if args.dual:
+      rscaSnippet += 'SCALAR RSCA SET 0.00 SELE ANN END\n'
+      rscaSnippet += 'SCALAR RSCA SET 1.00 SELE EXN END\n'
+    else:
+      rscaSnippet += 'SCALAR RSCA SET 0. SELE SEGI SOLU END'
     noPSSPSnippet = 'PSSP -'
   elif args.ti == 'pc':
     addTopFiles = ''
@@ -304,7 +327,7 @@ GENERATE SOLU
 REWIND UNIT 10
 READ COOR PDB UNIT 10
 CLOSE UNIT 10
-
+%s
 %s
 FAST OFF
 %s
@@ -320,9 +343,9 @@ ENERGY NBXMOD 5 ATOM CDIEL EPS 1.0 SHIFt VATOM VDISTANCE -
 
 STOP
 '''
-  return returnScript % (args.slu, topSnippet, parSnippet, 
-    args.slu, solventSnippet1, rscaSnippet, solventSnippet2, 
-    procSnippet, pressureSnippet, dcdSnippet)
+  return returnScript % (args.slu, topSnippet, parSnippet,
+    args.slu, dualSnippet, solventSnippet1, rscaSnippet, 
+    solventSnippet2, procSnippet, pressureSnippet, dcdSnippet)
 
 def saveToFile(data, filename):
   try:
@@ -734,7 +757,7 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
   if checkTIConvergence(outFile):
     lambdaVals['done'][index] = True
     lambdaVals['energy'][index] = extractWindowEnergy(outFile)
-    if args.ti == 'vdw':
+    if args.ti == 'vdw' and not args.dual:
       # TI for vdW is set up the wrong way: from lambda=1 to 0.
       lambdaVals['energy'][index] *= -1.0
     print "(dE: %9.5f) succeeded" % lambdaVals['energy'][index]

@@ -8,6 +8,8 @@ numproc=1
 PARFILES=()
 topfile=
 TOPFILES=()
+mtptopfile=
+mtptop=0
 solute=
 solvent=
 lpun=
@@ -33,6 +35,7 @@ function show_help
       -p:  CHARMM parameter file(s) (one at a time)\n\
       -t:  CHARMM topology file\n\
       -q:  addtl. CHARMM topology file(s) (optional)\n\
+      -a:  CHARMM topology file for MTP (replaces -t)\n\
       -o:  solute PDB file\n\
       -l:  solvent PDB file\n\
       -m:  MTP lpun file\n\
@@ -64,7 +67,7 @@ function contains() {
 }
 
 OPTIND=1
-while getopts "h?:c:n:p:t:q:o:l:m:g:e:r:i:d:f:b" opt; do
+while getopts "h?:c:n:p:t:q:o:l:m:g:e:r:i:d:f:b:a" opt; do
   case "$opt" in
     h|\?)
       show_help
@@ -91,6 +94,10 @@ while getopts "h?:c:n:p:t:q:o:l:m:g:e:r:i:d:f:b" opt; do
       TOPFILES+=("--top $OPTARG")
       echo "option TOPFILES: ${TOPFILES[@]}"
       ;;
+    a)
+      mtptopfile=$OPTARG
+      mtptop=1
+      echo "option topfile for MTP: $mtptopfile"
     o)
       solute=$OPTARG
       echo "option solute: $solute"
@@ -145,10 +152,12 @@ for simtype in ${SIMTYPES[@]}
 do
   filename=ti.$simtype.$filenamedirection.$nsteps.$lambda_step.out
   echo "Running $simtype; saving output to $filename"
+  topfileuse=$topfile
+  [ $topfile -eq 1 ] topfileuse=$mtptopfile
   # Submit jobs
   $pyScriptName \
     --chm $charmm \
-    --tps $topfile \
+    --tps $topfileuse \
     ${TOPFILES[@]} \
     ${PARFILES[@]} \
     --ti $simtype \
