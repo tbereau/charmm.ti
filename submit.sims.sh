@@ -98,6 +98,7 @@ while getopts "h?:c:n:p:t:q:o:l:m:g:e:r:i:d:f:b:a" opt; do
       mtptopfile=$OPTARG
       mtptop=1
       echo "option topfile for MTP: $mtptopfile"
+      ;;
     o)
       solute=$OPTARG
       echo "option solute: $solute"
@@ -153,7 +154,7 @@ do
   filename=ti.$simtype.$filenamedirection.$nsteps.$lambda_step.out
   echo "Running $simtype; saving output to $filename"
   topfileuse=$topfile
-  [ $topfile -eq 1 ] topfileuse=$mtptopfile
+  [ $topfile == "1" ] && topfileuse=$mtptopfile
   # Submit jobs
   $pyScriptName \
     --chm $charmm \

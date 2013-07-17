@@ -35,7 +35,7 @@ parser.add_argument('--slv', dest='slv', type=str,
                   help='PDB of the solvent (ignore for gas phase)')
 parser.add_argument('--lpun', dest='lpun', type=str, action='append',
                   help='LPUN file of the solute molecule ' \
-                  + ' (1 by default; 2 if --dual is turned on),')
+                  + ' (1 by default; 3 if --dual is turned on),')
 parser.add_argument('--lmb', dest='lmb', type=float, nargs=3,
                   default=[0.0, 0.1, 1.0],
                   help='lambda spacing for TI: l_min, l_space, l_max. ' +
@@ -62,19 +62,21 @@ parser.add_argument('--dual', dest='dual', type=str, nargs=3,
 
 args = parser.parse_args()
 # Initialize variables for dual topology
-dualAnn = []
-dualExn = []
+dualAnn  = []
+dualExn  = []
+dualAtId = [[],[],[]]
+dualCG   = [{},{},{}]
 
 if args.ti == 'mtp':
   if args.lpun is None:
     print "Error: 'mtp' option requires at least one *.lpun file."
     exit(1)
   else:
-    if len(args.lpun) > 2:
-      print "Error: too many lpun files. Use either 1 or 2 (for --dual)."
+    if len(args.lpun) not in [1,3]:
+      print "Error: too many lpun files. Use either 1 or 3 (for --dual)."
       exit(1)
 if args.lmb[0] < 0.0 or args.lmb[2] > 1.0 or args.lmb[1] < 0.0 or \
-  args.lmb[1] > args.lmb[2]-args.lmb[0]:
+  args.lmb[1] > args.lmb[2]-args.lmb[0]+1e-6:
   print "Error: Lambda spacing values out of bounds."
   print "If running a backward simulation, use corresponding forward bounds with option --back."
   exit(1)
@@ -101,17 +103,70 @@ if args.dual:
     if seenDual:
       if "atom" in line:
         numAtom += 1
+        dualAtId[numGroup-1].append(numAtom)
         if numGroup == 2:
           dualAnn.append(line.split()[1])
         elif numGroup == 3:
           dualExn.append(line.split()[1])
       if "group" in line:
         numGroup += 1
+  print dualAtId
   print "# Annihilated atom names:",dualAnn
   print "# Exnihilated atom names:",dualExn
   if numGroup != 3:
     print "Error: need 3 GROUP statements in ", args.tps
     exit(1) 
+  if args.ti == 'pc':
+    print "Dual topology for",args.ti,"currently not supported."
+    exit(1)
+  elif args.ti == 'mtp':
+    if len(args.lpun) != 2:
+      print "Error: 'mtp' with DUAL requires two lpun files."
+      exit(1)
+    # Check that we have the same atom names in the two lpun files in group1.
+    lpun1 = misc.readInFromFile(args.lpun[0])
+    lpun2 = misc.readInFromFile(args.lpun[1])
+    lpun1AtName = {}
+    lpun2AtName = {}
+    for i in range(len(lpun1)):
+      if 'Rank' in lpun1[i]:
+        lpun1AtName[lpun1[i].split()[0]] = lpun1[i].split()[1]
+    for i in range(len(lpun2)):
+      if 'Rank' in lpun2[i]:
+        lpun2AtName[lpun2[i].split()[0]] = lpun2[i].split()[1]
+    print "lpun1",lpun1AtName.keys()
+    print "lpun2",lpun2AtName.keys()
+    for i in dualAtId[0]:
+      if str(i) not in lpun1AtName.keys() or str(i) not in lpun2AtName.keys():
+        print "Error: IDs of lpun file incompatible with top file."
+        exit(1)
+      # Now compare the names of id i
+      if lpun1AtName[str(i)] != lpun2AtName[str(i)]:
+        print "Error: lpun files have incompatible atom names in " + \
+        "dual topology calculation: "
+        print "  ID " + str(i) + ": " + str(lpun1AtName[str(i)]) + " vs. " + \
+          str(lpun2AtName[str(i)]) 
+        exit(1)
+    exit(1)
+  if args.ti in ['pcsg','mtp']:
+    # Identify which charges are in which groups.
+    # DUAL: Scale all charges in the following way:
+    # group 1 (env) -> (1-l)*q1 + l*q2
+    # group 2 (ann) -> (1-l)*q
+    # group 3 (exn) -> l*q
+    # Identify annihilated and exnihilated atoms.
+    resi = -1
+    for i in range(len(dualFile)):
+      line = dualFile[i].lower()
+      for j in range(3):
+        if args.dual[j].lower() in line:
+          resi = j
+      if resi > -1:
+        if "atom" in line:
+          dualCG[resi][line.split()[1]] = float(line.split()[3])
+    print "group1",dualCG[0]
+    print "group2",dualCG[1]
+    print "group3",dualCG[2]
   
 
 print "# Parameters: nsteps=%d; nequil=%d" % (args.nsteps, args.nequil)
@@ -200,14 +255,15 @@ CLOSE UNIT 10
     # if sim == True:
     solventSnippet2 += \
 '''COOR STAT
-CALC BOXX = ?XMAX - ?XMIN
+CALC BOXX = (?XMAX - ?XMIN -1.0)
 CRYSTAL DEFI CUBIC @BOXX @BOXX @BOXX 90. 90. 90. 
 CRYSTAL BUILD nope 0
 IMAGE BYRES XCEN 0.0 YCEN 0.0 ZCEN 0.0 SELE ALL END
 
 NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
   FFTX 32 FFTY 32 FFTZ 32 ORDER 6 -
-  CUTNB 12.0  CTOFNB 11.0 CTONnb 10.0'''
+  CUTNB 12.0  CTOFNB 11.0 CTONnb 10.0
+'''
     if sim == True:
       solventSnippet2 += \
 '''CONS HMCM FORCE 5.0 WEIGH REFX 0. REFY 0. REFZ 0. -
@@ -216,6 +272,9 @@ NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
   else:
     # in the gas phase. Turn on Langevin
     solventSnippet2 += "SCALAR FBETA SET 5. SELE ALL END"
+  solventSnippet2 += \
+'''
+'''
   dcdSnippet = 'NPRINT 1000 NSAVC -1 -'
   if args.ti == 'vdw':
     rscaSnippet = 'PERT SELE SEGI SOLU END\n'
@@ -259,19 +318,22 @@ CLOSE UNIT 10
     if sim == True:
       rscaSnippet = \
 '''OPEN WRITE UNIT 50 NAME %s
-
+''' % trjFile
+      solventSnippet2 += \
+'''
 OPEN UNIT 40 CARD READ NAME %s
-MTP MTPUNIT 40
+MTPL MTPUNIT 40
 CLOSE UNIT 40
-''' % (trjFile, getScaleLpunFile('%.6f' % lambdai))
+''' % getScaleLpunFile('%.6f' % lambdai)
       dcdSnippet = 'NPRINT 100 NSAVC 100 IUNCRD 50'
     else:
       lambdaEnergy = lambdaf
       if analyzeLambdai:
         lambdaEnergy = lambdai
-      rscaSnippet = \
-'''OPEN UNIT 40 CARD READ NAME %s
-MTP MTPUNIT 40
+      solventSnippet2 += \
+'''
+OPEN UNIT 40 CARD READ NAME %s
+MTPL MTPUNIT 40
 CLOSE UNIT 40
 ''' % getScaleLpunFile('%.6f' % lambdaEnergy)
       dcdSnippet = ''
@@ -317,7 +379,7 @@ CLOSE UNIT 50
 * Tristan BEREAU (2013)
 *
 
-SET PRNLEV 2
+PRNLEV 2
 
 %s
 %s
@@ -489,11 +551,29 @@ def scaleChargesInTop(lambda_current):
     raise "I/O Error",e
   newTopFile = getScaleTopFile(lambda_current)
   f = open(newTopFile,'w')
+  dualresi = -1
   for i in range(len(s)):
     words = s[i].split()
-    if len(words) > 1 and words[0] == 'ATOM':
-      charge = str(float(words[3]) * math.sqrt(float(lambda_current)))
-      s[i] = s[i][:s[i].find(words[3])] + charge +"\n"
+    if args.dual:
+      for j in range(3):
+        if args.dual[j].lower() in s[i].lower().split():
+          dualresi = j
+    if len(words) > 1 and words[0].lower() == 'atom':
+      charge = 0.0
+      if dualresi == 2:
+        atom = words[1].lower()
+        if atom in dualExn:
+          charge = dualCG[2][atom] * \
+            math.sqrt(float(lambda_current))
+        elif atom in dualAnn:
+          charge = dualCG[2][atom] * \
+            (1-math.sqrt(float(lambda_current)))
+        else:
+          charge = (1-math.sqrt(float(lambda_current))) * dualCG[0][atom] \
+            + math.sqrt(float(lambda_current)) * dualCG[1][atom]
+      else:
+        charge = float(words[3]) * math.sqrt(float(lambda_current))
+      s[i] = "%s %-7.4f\n" % (s[i][:s[i].find(words[3])], charge)
     f.write(s[i])
   f.close()
   if args.remote:
@@ -819,8 +899,8 @@ lambdaVals['done'] = [False]
 # arbitrarily large energy
 lambdaVals['energy'] = [99999.9]
 lmb_cur = args.lmb[0] + args.lmb[1]
-while (not args.backward and lmb_cur <= args.lmb[2] - args.lmb[1]) \
-  or (args.backward and lmb_cur >= args.lmb[2] - args.lmb[1]):
+while (not args.backward and lmb_cur <= args.lmb[2] - args.lmb[1] + 1e-6) \
+  or (args.backward and lmb_cur >= args.lmb[2] - args.lmb[1] - 1e-6):
   lambdaVals['initial'].append(lmb_cur)
   lambdaVals['final'].append(lmb_cur)
   lambdaVals['done'].append(False)
