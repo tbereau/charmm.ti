@@ -66,6 +66,7 @@ dualAnn  = []
 dualExn  = []
 dualAtId = [[],[],[]]
 dualCG   = [{},{},{}]
+dualMTP  = [{},{},{}]
 
 if args.ti == 'mtp':
   if args.lpun is None:
@@ -73,7 +74,7 @@ if args.ti == 'mtp':
     exit(1)
   else:
     if len(args.lpun) not in [1,3]:
-      print "Error: too many lpun files. Use either 1 or 3 (for --dual)."
+      print "Error: Wrong number of lpun files. Use either 1 or 3 (for --dual)."
       exit(1)
 if args.lmb[0] < 0.0 or args.lmb[2] > 1.0 or args.lmb[1] < 0.0 or \
   args.lmb[1] > args.lmb[2]-args.lmb[0]+1e-6:
@@ -120,34 +121,35 @@ if args.dual:
     print "Dual topology for",args.ti,"currently not supported."
     exit(1)
   elif args.ti == 'mtp':
-    if len(args.lpun) != 2:
+    if len(args.lpun) != 3:
       print "Error: 'mtp' with DUAL requires two lpun files."
       exit(1)
-    # Check that we have the same atom names in the two lpun files in group1.
-    lpun1 = misc.readInFromFile(args.lpun[0])
-    lpun2 = misc.readInFromFile(args.lpun[1])
-    lpun1AtName = {}
-    lpun2AtName = {}
-    for i in range(len(lpun1)):
-      if 'Rank' in lpun1[i]:
-        lpun1AtName[lpun1[i].split()[0]] = lpun1[i].split()[1]
-    for i in range(len(lpun2)):
-      if 'Rank' in lpun2[i]:
-        lpun2AtName[lpun2[i].split()[0]] = lpun2[i].split()[1]
-    print "lpun1",lpun1AtName.keys()
-    print "lpun2",lpun2AtName.keys()
-    for i in dualAtId[0]:
-      if str(i) not in lpun1AtName.keys() or str(i) not in lpun2AtName.keys():
-        print "Error: IDs of lpun file incompatible with top file."
-        exit(1)
-      # Now compare the names of id i
-      if lpun1AtName[str(i)] != lpun2AtName[str(i)]:
-        print "Error: lpun files have incompatible atom names in " + \
-        "dual topology calculation: "
-        print "  ID " + str(i) + ": " + str(lpun1AtName[str(i)]) + " vs. " + \
-          str(lpun2AtName[str(i)]) 
-        exit(1)
-    exit(1)
+    # Store MTP parameters from lpun files.
+    lastRankLine = -999
+    atomID = -1
+    for num in range(3):
+      lpunfile = misc.readInFromFile(args.lpun[num])
+      for i in range(len(lpunfile)):
+        if 'Rank' in lpunfile[i]:
+          lastRankLine = i
+          atomID = int(lpunfile[i].split()[0])
+          dualMTP[num][atomID] = []
+        if lastRankLine == i-2:
+          dualMTP[num][atomID].append(float(lpunfile[i].split()[0]))
+        elif lastRankLine == i-3:
+          dualMTP[num][atomID].append(float(lpunfile[i].split()[0]))
+          dualMTP[num][atomID].append(float(lpunfile[i].split()[1]))
+          dualMTP[num][atomID].append(float(lpunfile[i].split()[2]))
+        elif lastRankLine == i-4:
+          if 'Rank' in lpunfile[i]:
+            print "Error: check lpun file format."
+            print "  Need all monopole, dipole, and quadrupole components."
+            exit(1)
+          dualMTP[num][atomID].append(float(lpunfile[i].split()[0]))
+          dualMTP[num][atomID].append(float(lpunfile[i].split()[1]))
+          dualMTP[num][atomID].append(float(lpunfile[i].split()[2]))
+          dualMTP[num][atomID].append(float(lpunfile[i].split()[3]))
+          dualMTP[num][atomID].append(float(lpunfile[i].split()[4]))
   if args.ti in ['pcsg','mtp']:
     # Identify which charges are in which groups.
     # DUAL: Scale all charges in the following way:
@@ -164,9 +166,15 @@ if args.dual:
       if resi > -1:
         if "atom" in line:
           dualCG[resi][line.split()[1]] = float(line.split()[3])
-    print "group1",dualCG[0]
-    print "group2",dualCG[1]
-    print "group3",dualCG[2]
+    if args.ti == 'mtp':
+      for num in range(3):
+        if len(dualMTP[num]) != len(dualCG[num]):
+          print "Error: number of atoms don't match in top and lpun file number",num
+          exit(1)
+    print "# Running dual topology with:"
+    print "#  %5d environment solute atom(s)" % len(dualAtId[0])
+    print "#  %5d annihilated solute atom(s)" % len(dualAtId[1])
+    print "#  %5d exnihilated solute atom(s)" % len(dualAtId[2])
   
 
 print "# Parameters: nsteps=%d; nequil=%d" % (args.nsteps, args.nequil)
@@ -543,6 +551,10 @@ def subdivideLambdaWindow(index):
 
 def scaleChargesInTop(lambda_current):
   # Scale charges and store new topology file
+  # DUAL: Scale all charges in the following way:
+  # group 1 (env) -> (1-l)*q1 + l*q2
+  # group 2 (ann) -> (1-l)*q
+  # group 3 (exn) -> l*q
   try:
     f = open(args.tps,'r')
     s = f.readlines()
@@ -554,7 +566,7 @@ def scaleChargesInTop(lambda_current):
   dualresi = -1
   for i in range(len(s)):
     words = s[i].split()
-    if args.dual:
+    if args.dual and args.ti != 'vdw':
       for j in range(3):
         if args.dual[j].lower() in s[i].lower().split():
           dualresi = j
@@ -582,23 +594,47 @@ def scaleChargesInTop(lambda_current):
 
 def scaleMTPInLpun(lambda_current):
   # Scale all multipole moments and store new lpun file
+  # DUAL: Scale all charges in the following way:
+  # group 1 (env) -> (1-l)*Q1 + l*Q2
+  # group 2 (ann) -> (1-l)*Q
+  # group 3 (exn) -> l*Q  
   try:
-    f = open(args.lpun[0],'r')
+    # Get the last lpun file: 0 in general, 2 for dual-topology method.
+    f = open(args.lpun[-1],'r')
     s = f.readlines()
     f.close()
   except IOError, e:
     raise "I/O Error",e
   newTopFile = getScaleLpunFile(lambda_current)
   f = open(newTopFile,'w')
+  atomID = -1
+  mtpcoef = -1
   for i in range(len(s)):
-    if s[i][0] == '#' or 'Rank' in s[i] or 'LRA:' in s[i]:
+    if s[i][0] == '#' or 'Rank' in s[i] or 'lra:' in s[i].lower():
       f.write(s[i])
+      if 'Rank' in s[i]:
+        atomID = int(s[i].lower().split()[0])
+        mtpcoef = 0
     else:
       words = s[i].split()
       line = ''
       for word in words:
-        word = str(float(word) * math.sqrt(float(lambda_current)))
-        line += word + " "
+        if args.dual and args.ti is not 'vdw':
+          if atomID in dualAtId[2]:
+            word = dualMTP[2][atomID][mtpcoef] \
+              * math.sqrt(float(lambda_current))
+          elif atomID in dualAtId[1]:
+            word = dualMTP[2][atomID][mtpcoef] \
+              * (1-math.sqrt(float(lambda_current)))
+          else:
+            word = (1-math.sqrt(float(lambda_current))) \
+              * dualMTP[0][atomID][mtpcoef] \
+              + math.sqrt(float(lambda_current)) \
+              * dualMTP[1][atomID][mtpcoef]
+        else:
+          word = float(word) * math.sqrt(float(lambda_current))
+        line += "%7.4f " % word
+        mtpcoef += 1
       line += "\n"
       f.write(line)
   f.close()
