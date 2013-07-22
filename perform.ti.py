@@ -111,7 +111,6 @@ if args.dual:
           dualExn.append(line.split()[1])
       if "group" in line:
         numGroup += 1
-  print dualAtId
   print "# Annihilated atom names:",dualAnn
   print "# Exnihilated atom names:",dualExn
   if numGroup != 3:
@@ -150,6 +149,7 @@ if args.dual:
           dualMTP[num][atomID].append(float(lpunfile[i].split()[2]))
           dualMTP[num][atomID].append(float(lpunfile[i].split()[3]))
           dualMTP[num][atomID].append(float(lpunfile[i].split()[4]))
+      print "# Atom names in lpun file number #%d:" %num,dualMTP[num].keys()
   if args.ti in ['pcsg','mtp']:
     # Identify which charges are in which groups.
     # DUAL: Scale all charges in the following way:
@@ -175,6 +175,7 @@ if args.dual:
         for key in dualCG[num].keys():
           if key not in dualMTP[num].keys():
             print "Error: Can't find atom name",key,"in lpun file number",num+1
+            print "       Make sure your top and lpun files have the same atom names."
             exit(1)
     print "# Running dual topology with:"
     print "#  %5d environment solute atom(s)" % len(dualAtId[0])
@@ -253,7 +254,6 @@ def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True,
     dualSnippet += 'BOMLEV 0\n'
     dualSnippet += 'SCALAR RSCA SET 0.00 SELE EXN END\n'
   if args.slv:
-    pressureSnippet = 'PCONST PINTERNAL PREFERENCE 1.0 -'
     solventSnippet1 = \
 '''OPEN UNIT 10 READ CARD NAME %s
 READ SEQUENCE PDB UNIT 10
