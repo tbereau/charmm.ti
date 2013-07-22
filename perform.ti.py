@@ -132,7 +132,7 @@ if args.dual:
       for i in range(len(lpunfile)):
         if 'Rank' in lpunfile[i]:
           lastRankLine = i
-          atomID = int(lpunfile[i].split()[0])
+          atomID = str(lpunfile[i].split()[1].lower())
           dualMTP[num][atomID] = []
         if lastRankLine == i-2:
           dualMTP[num][atomID].append(float(lpunfile[i].split()[0]))
@@ -169,8 +169,13 @@ if args.dual:
     if args.ti == 'mtp':
       for num in range(3):
         if len(dualMTP[num]) != len(dualCG[num]):
-          print "Error: number of atoms don't match in top and lpun file number",num
+          print "Error: number of atoms don't match in top and lpun file number",num+1
+          print "       Make sure the atom names in the lpun files are uniquely defined."
           exit(1)
+        for key in dualCG[num].keys():
+          if key not in dualMTP[num].keys():
+            print "Error: Can't find atom name",key,"in lpun file number",num+1
+            exit(1)
     print "# Running dual topology with:"
     print "#  %5d environment solute atom(s)" % len(dualAtId[0])
     print "#  %5d annihilated solute atom(s)" % len(dualAtId[1])
@@ -575,14 +580,12 @@ def scaleChargesInTop(lambda_current):
       if dualresi == 2:
         atom = words[1].lower()
         if atom in dualExn:
-          charge = dualCG[2][atom] * \
-            math.sqrt(float(lambda_current))
+          charge = dualCG[2][atom] * float(lambda_current)
         elif atom in dualAnn:
-          charge = dualCG[2][atom] * \
-            (1-math.sqrt(float(lambda_current)))
+          charge = dualCG[2][atom] * (1-float(lambda_current))
         else:
-          charge = (1-math.sqrt(float(lambda_current))) * dualCG[0][atom] \
-            + math.sqrt(float(lambda_current)) * dualCG[1][atom]
+          charge = (1-float(lambda_current)) * dualCG[0][atom] \
+            + float(lambda_current) * dualCG[1][atom]
       else:
         charge = float(words[3]) * math.sqrt(float(lambda_current))
       s[i] = "%s %-7.4f\n" % (s[i][:s[i].find(words[3])], charge)
@@ -607,30 +610,26 @@ def scaleMTPInLpun(lambda_current):
     raise "I/O Error",e
   newTopFile = getScaleLpunFile(lambda_current)
   f = open(newTopFile,'w')
-  atomID = -1
+  atom = ''
   mtpcoef = -1
   for i in range(len(s)):
     if s[i][0] == '#' or 'Rank' in s[i] or 'lra:' in s[i].lower():
       f.write(s[i])
       if 'Rank' in s[i]:
-        atomID = int(s[i].lower().split()[0])
+        atom = str(s[i].lower().split()[1].lower())
         mtpcoef = 0
     else:
       words = s[i].split()
       line = ''
       for word in words:
         if args.dual and args.ti is not 'vdw':
-          if atomID in dualAtId[2]:
-            word = dualMTP[2][atomID][mtpcoef] \
-              * math.sqrt(float(lambda_current))
-          elif atomID in dualAtId[1]:
-            word = dualMTP[2][atomID][mtpcoef] \
-              * (1-math.sqrt(float(lambda_current)))
+          if atom in dualExn:
+            word = dualMTP[2][atom][mtpcoef] * float(lambda_current)
+          elif atom in dualAnn:
+            word = dualMTP[2][atom][mtpcoef] * (1-float(lambda_current))
           else:
-            word = (1-math.sqrt(float(lambda_current))) \
-              * dualMTP[0][atomID][mtpcoef] \
-              + math.sqrt(float(lambda_current)) \
-              * dualMTP[1][atomID][mtpcoef]
+            word = (1-float(lambda_current)) * dualMTP[0][atom][mtpcoef] \
+              + float(lambda_current) * dualMTP[1][atom][mtpcoef]
         else:
           word = float(word) * math.sqrt(float(lambda_current))
         line += "%7.4f " % word
