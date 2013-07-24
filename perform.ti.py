@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(description=
   'Generate, manage, and analyze TI calculations in CHARMM',
   epilog='Tristan BEREAU (2013)')
 parser.add_argument('--ti', dest='ti', type=str, required=True, 
-                  choices=['vdw', 'pc', 'pcsg', 'mtp'],
+                  choices=['vdw', 'pc', 'mtp'],
                   help='TI flag: either "vdw" or "elec"')
 parser.add_argument('--chm', dest='charmm', default='charmm', type=str, 
                   help='CHARMM executable')
@@ -120,6 +120,8 @@ if args.dual:
     print "Dual topology for",args.ti,"currently not supported."
     exit(1)
   elif args.ti == 'mtp':
+    print "Error: MTP and dual topology not yet supported"
+    exit(1)
     if len(args.lpun) != 3:
       print "Error: 'mtp' with DUAL requires two lpun files."
       exit(1)
@@ -150,7 +152,7 @@ if args.dual:
           dualMTP[num][atomID].append(float(lpunfile[i].split()[3]))
           dualMTP[num][atomID].append(float(lpunfile[i].split()[4]))
       print "# Atom names in lpun file number #%d:" %num,dualMTP[num].keys()
-  if args.ti in ['pcsg','mtp']:
+  if args.ti == 'mtp':
     # Identify which charges are in which groups.
     # DUAL: Scale all charges in the following way:
     # group 1 (env) -> (1-l)*q1 + l*q2
@@ -197,24 +199,11 @@ def getTrjFile(lambdai, lambdan, lambdaf):
   return "tmp.perform.ti.charmm.script.%.6f.%.6f.%.6f.%s.trj" % (lambdai, 
     lambdan, lambdaf, args.ti)
 
-def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True,
-  analyzeLambdai=True):
+def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True):
   # 'sim' flag: run either MD simulation or extract energy from trajectory.
-  # 'analyzeLambdai': when extracting energies, use lambda_i as coupling
-  # (otherwise we use lambda_f).
   trjFile = getTrjFile(lambdai, lambdan, lambdaf)
   topSnippet = ''
-  if args.ti in ['pc','mtp'] or (args.ti == 'pcsg' and sim == True):
-    topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
-      getScaleTopFile('%.6f' % lambdai)
-  elif (args.ti == 'pcsg' and sim == False):
-    lambdaEnergy = lambdaf
-    if analyzeLambdai:
-      lambdaEnergy = lambdai
-    topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
-      getScaleTopFile('%.6f' % lambdaEnergy)
-  elif args.ti == 'vdw':
-    topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
+  topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
       getScaleTopFile('%.6f' % 0.00)
   if args.top:
     for i in range(len(args.top)):
@@ -251,8 +240,8 @@ def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True,
         dualSnippet += ' .AND. '
       dualSnippet += ' -\n'
     dualSnippet += '  END\nDELETE ANGL SELE ANN END SELE EXN END SORT\n'
-    dualSnippet += 'BOMLEV 0\n'
-    dualSnippet += 'SCALAR RSCA SET 0.00 SELE EXN END\n'
+    if args.ti == 'vdw':
+      dualSnippet += 'SCALAR RSCA SET 0.00 SELE EXN END\n'
   if args.slv:
     solventSnippet1 = \
 '''OPEN UNIT 10 READ CARD NAME %s
@@ -275,7 +264,8 @@ IMAGE BYRES XCEN 0.0 YCEN 0.0 ZCEN 0.0 SELE ALL END
 
 NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
   FFTX 32 FFTY 32 FFTZ 32 ORDER 6 -
-  CUTNB 12.0  CTOFNB 11.0 CTONnb 10.0
+  CUTNB 12.0  CTOFNB 11.0 CTONnb 10.0 -
+  VSWITCH 
 '''
     if sim == True:
       solventSnippet2 += \
@@ -297,7 +287,7 @@ NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
     else:
       rscaSnippet += 'SCALAR RSCA SET 0. SELE SEGI SOLU END'
     noPSSPSnippet = 'PSSP -'
-  elif args.ti == 'pc':
+  elif args.ti in ['pc','mtp']:
     addTopFiles = ''
     if args.top:
       for i in range(len(args.top)):
@@ -316,39 +306,28 @@ READ COOR PDB UNIT 10
 CLOSE UNIT 10
 
 %s
-''' % (getScaleTopFile('%.6f' % lambdaf), addTopFiles, args.slu, solventSnippet1)
+''' % (getScaleTopFile('%.6f' % 1.0), addTopFiles, args.slu, solventSnippet1)
     noPSSPSnippet = "NOPSSP"
-  elif args.ti == 'pcsg':
+  if args.ti == 'mtp':
     if sim == True:
-      rscaSnippet = "OPEN WRITE UNIT 50 NAME %s" % trjFile
-      dcdSnippet = 'NPRINT 100 NSAVC 100 IUNCRD 50'
-    else:
-      rscaSnippet = ''
-      dcdSnippet = ''
-      pressureSnippet = '-'
-    noPSSPSnippet = "NOPSSP -"
-  elif args.ti == 'mtp':
-    if sim == True:
-      rscaSnippet = \
+      rscaSnippet += \
 '''OPEN WRITE UNIT 50 NAME %s
 ''' % trjFile
       solventSnippet2 += \
 '''
 OPEN UNIT 40 CARD READ NAME %s
-MTPL MTPUNIT 40
+MTPL MTPUNIT 40 PREF %s
 CLOSE UNIT 40
-''' % getScaleLpunFile('%.6f' % lambdai)
+''' % (getScaleLpunFile('%.6f' % 1.0), lambdan)
       dcdSnippet = 'NPRINT 100 NSAVC 100 IUNCRD 50'
     else:
-      lambdaEnergy = lambdaf
-      if analyzeLambdai:
-        lambdaEnergy = lambdai
+      lambdaEnergy = lambdan
       solventSnippet2 += \
 '''
 OPEN UNIT 40 CARD READ NAME %s
-MTPL MTPUNIT 40
+MTPL MTPUNIT 40 PREF %s
 CLOSE UNIT 40
-''' % getScaleLpunFile('%.6f' % lambdaEnergy)
+''' % (getScaleLpunFile('%.6f' % 1.0), lambdan)
       dcdSnippet = ''
       pressureSnippet = '-'
     noPSSPSnippet = "NOPSSP -"
@@ -370,7 +349,7 @@ CLOSE UNIT 40
     # in the gas phase
     procSnippet = procSnippet + '''
   TBATH 298. RBUF 0. ILBFRQ 10 FIRSTT 240. -'''
-  if args.ti in ['pcsg','mtp'] and sim == False:
+  if args.ti == 'mtp' and sim == False:
     procSnippet = \
 '''OPEN READ UNIT 50 NAME %s
 
@@ -380,7 +359,7 @@ SET NTRAJ 0
 LABEL SNAP
 TRAJ READ
 SET TIME ?TIME
-ENERGY CUTNB 99
+ENERGY
 INCR NTRAJ BY 1
 IF @NTRAJ .LT. %s GOTO SNAP
 CLOSE UNIT 50
@@ -404,11 +383,11 @@ READ COOR PDB UNIT 10
 CLOSE UNIT 10
 %s
 %s
-FAST OFF
-%s
+BOMLEV 0
 
-ENERGY NBXMOD 5 ATOM CDIEL EPS 1.0 SHIFt VATOM VDISTANCE -
-  VSWItch CUTNb 12.0 CTOFnb 11. CTONnb 10. E14Fac 1.0 
+NBONDS NBXMOD 5 ATOM CDIEL EPS 1.0 SHIFT VATOM VDISTANCE -
+  VSWITCH CUTNB 12.0 CTOFNB 11.0 CTONNB 10. E14FAC 1.0
+%s
 
 %s
 
@@ -607,7 +586,8 @@ def scaleMTPInLpun(lambda_current):
     s = f.readlines()
     f.close()
   except IOError, e:
-    raise "I/O Error",e
+    print "I/O Error",e
+    exit(1)
   newTopFile = getScaleLpunFile(lambda_current)
   f = open(newTopFile,'w')
   atom = ''
@@ -662,7 +642,8 @@ def extractEnergyDiff(trajFile1, trajFile2):
       s = f.readlines()
       f.close()
     except IOError, e:
-      raise "I/O Error",e  
+      print "I/O Error",e  
+      exit(1)
     for i in range(len(s)):
       if "ENER EXTERN>" in s[i]:
         curTrajEne.append(float(s[i].split()[3]))
@@ -692,6 +673,33 @@ def extractEnergyDiff(trajFile1, trajFile2):
   f.close()
   return retName
 
+def extractEnergy(trajFile):
+  trajEne = []
+  try:
+    f = open(trajFile,'r')
+    s = f.readlines()
+    f.close()
+  except IOError,e:
+    print "I/O Error",e
+    exit(1)
+  for i in range(len(s)):
+    if "ENER EXTERN>" in s[i]:
+      trajEne.append(float(s[i].split()[3]))
+      if math.isnan(trajEne[-1]):
+        print "Error. MTP energy is NaN."
+        exit(1)
+  if len(trajEne) == 0:
+    print "Error. No energy recorded in",trajFile
+    exit(1)
+  avg = sum(trajEne)/len(trajEne)
+  std = math.sqrt(sum([i**2-avg**2 for i in trajEne]))/len(trajEne)
+  retName = trajFile[:trajFile.rfind(".out")] + '.stat.dat'
+  f = open(retName,'w')
+  f.write("DIFFLC = " + str(std) + "\n")
+  f.write("PERTRES> . . . . . EPRTOT= " + str(avg) + "\n")
+  f.close()
+  return retName
+
 
 def runLambdaInterval(index, nstep, nequil, simCounter):
   # Run TI window given by index of the lambdaVals dictionary. Routine returns
@@ -700,27 +708,23 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
   lambda_f = lambdaVals['final'][index]
   delVal   = lambda_f - lambda_i
   lambda_n = delVal/2. + lambda_i
-  if delVal > 0. and delVal < 1.:
-    if lambda_i == 0.0:
-      lambda_n = 0.0
-    if lambda_f == 1.0:
-      lambda_n = 1.0
-  elif delVal < 0. and delVal > -1.:
-    if lambda_i == 1.0:
-      lambda_n = 1.0
-    if lambda_f == 0.0:
-      lambda_n = 0.0
   # Only for args.remote -- subdirectory of the submitted simulation
   if args.remote:
     rmtChm.setSubSubDir(getSubSubDir(lambda_i, lambda_n, lambda_f))
-  if args.ti in ['pc', 'pcsg', 'mtp']:
+  if args.ti in ['pc', 'mtp']:
     # Scale charges
     scaleChargesInTop('%.6f' % lambda_i)
+    scaleChargesInTop('%.6f' % lambda_n)
     scaleChargesInTop('%.6f' % lambda_f)
+    scaleChargesInTop('%.6f' % 0.00)
+    scaleChargesInTop('%.6f' % 1.00)
   if args.ti == 'mtp':
     # Scale MTPs
     scaleMTPInLpun('%.6f' % lambda_i)
     scaleMTPInLpun('%.6f' % lambda_f)
+    scaleMTPInLpun('%.6f' % lambda_n)
+    scaleMTPInLpun('%.6f' % 0.00)
+    scaleMTPInLpun('%.6f' % 1.00)
   print "# lambda: (%.6f - %.6f)..." % (lambda_i, lambda_f),
   sys.stdout.flush()
   if args.remote:
@@ -737,29 +741,30 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
               str(args.ti) + '.out'
   inpFiles.append(inpFile)
   outFiles.append(outFile)
+  mtpAddDG = 0.0
   if args.remote:
     # Leave the routine if the simulation and analysis is complete
     if outFile in lambdaVals['completed']:
       return False, simCounter
     # Try downloading the trj file if it's not already there
     if not rmtChm.trjfileConsistent(trjFile):
-      if args.ti in ['pcsg','mtp']:
+      if args.ti == 'mtp':
         if rmtChm.remoteFileExists(trjFile):
           rmtChm.getFile(trjFile)
     # Don't submit new run if the file is stored locally
     if rmtChm.localFileExists(outFile) and \
-      (args.ti in ['pc','vdw'] or (args.ti in ['pcsg','mtp'] and \
+      (args.ti in ['pc','vdw'] or (args.ti == 'mtp' and \
         rmtChm.trjfileConsistent(trjFile) ) ):
       if inpFile not in lambdaVals['submitted']:
         lambdaVals['submitted'].append(inpFile)
       jobReturn=0
     elif rmtChm.remoteFileExists(outFile) and \
-      (args.ti in ['pc','vdw'] or (args.ti in ['pcsg','mtp'] and \
+      (args.ti in ['pc','vdw'] or (args.ti == 'mtp' and \
         rmtChm.trjfileConsistent(trjFile) ) ):
       if inpFile not in lambdaVals['submitted']:
         lambdaVals['submitted'].append(inpFile)
       rmtChm.consistentAndGet(outFile)
-      if args.ti in ['pcsg','mtp']:
+      if args.ti == 'mtp':
         rmtChm.getFile(trjFile)
       jobReturn=0
     else:
@@ -775,17 +780,20 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
   if jobReturn < 0:
     subdivideLambdaWindow(index)
     return False, simCounter
-  if args.ti in ['pcsg','mtp']:
+  if args.ti == 'mtp':
     # Loop over lambda_i and lambda_f to extract energies
     inpReadFiles = []
     outReadFiles = []
-    for i in [1,2]:
+    numSim = [1]
+    if args.dual:
+      numSim = [1,2]
+    for i in numSim:
       lambdaCurIsI = True
       if i == 2:
         lambdaCurIsI = False
       # Run analysis script
       inpReadScript = generateCHARMMScript(lambda_i, lambda_n, lambda_f, nstep, 
-                      nequil, sim=False, analyzeLambdai=lambdaCurIsI)
+                      nequil, sim=False)
       inpReadFile   = 'tmp.perform.ti.charmm.script.'+ str('%.6f' % lambda_i)+ \
                       '.' + str("%.6f" % lambda_n) + '.' + str('%.6f' % lambda_f) \
                       + '.' + args.ti + '.read.' + str(i) + '.inp'
@@ -824,7 +832,7 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
                 jobReturn = 0
       jobTmpReturn, simCounter = runCHARMMScript(inpReadFile, outReadFile, 
         simCounter, dependID=jobReturn, noMPI=True)
-    for i in [1,2]:
+    for i in numSim:
       if args.remote:
         allFilesFinished = True
         for j in range(len(inpFiles)):
@@ -847,11 +855,15 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
         if allFilesFinished == False:
           return False, simCounter
         lambdaVals['completed'].append(outFile)  
-    tempFile = extractEnergyDiff(outReadFiles[0], outReadFiles[1])
-    # outFile is now tempFile--it contains the free energy result.
-    outFile = tempFile
+    if len(numSim) == 2:
+      tempFile = extractEnergyDiff(outReadFiles[0], outReadFiles[1])
+      # outFile is now tempFile--it contains the free energy result.
+      outFile = tempFile
+    else:
+      tempFile = extractEnergy(outReadFile)
+      mtpAddDG = extractWindowEnergy(tempFile)
   else:
-    # vdW
+    # not dual
     if args.remote:
       # First look for file locally, then remotely
       if rmtChm.localFileExists(outFile) == False:
@@ -868,13 +880,15 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
             return False, simCounter
       lambdaVals['completed'].append(outFile)
   if args.remote:
-    rmtChm.delRemoteSubSubDir()      
+    rmtChm.delRemoteSubSubDir()  
   if checkTIConvergence(outFile):
     lambdaVals['done'][index] = True
     lambdaVals['energy'][index] = extractWindowEnergy(outFile)
     if args.ti == 'vdw' and not args.dual:
       # TI for vdW is set up the wrong way: from lambda=1 to 0.
       lambdaVals['energy'][index] *= -1.0
+    if args.ti == 'mtp':
+      lambdaVals['energy'][index] += mtpAddDG
     print "(dE: %9.5f) succeeded" % lambdaVals['energy'][index]
     return True, simCounter
   else:
@@ -954,6 +968,7 @@ if args.remote:
 # MTP or vdW -> no charges in top file
 if args.ti in ['mtp','vdw']:
   scaleChargesInTop('%.6f' % 0.00)
+  scaleChargesInTop('%.6f' % 1.00)
 
 simCounter = 0
 # Main loop. Calculates all lambda windows.
