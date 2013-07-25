@@ -325,9 +325,9 @@ CLOSE UNIT 40
       solventSnippet2 += \
 '''
 OPEN UNIT 40 CARD READ NAME %s
-MTPL MTPUNIT 40 PREF %s
+MTPL MTPUNIT 40
 CLOSE UNIT 40
-''' % (getScaleLpunFile('%.6f' % 1.0), lambdan)
+''' % (getScaleLpunFile('%.6f' % 1.0))
       dcdSnippet = ''
       pressureSnippet = '-'
     noPSSPSnippet = "NOPSSP -"
@@ -861,7 +861,7 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
       outFile = tempFile
     else:
       tempFile = extractEnergy(outReadFile)
-      mtpAddDG = extractWindowEnergy(tempFile)
+      mtpAddDG = extractWindowEnergy(tempFile) * (lambda_f-lambda_i)
   else:
     # not dual
     if args.remote:
