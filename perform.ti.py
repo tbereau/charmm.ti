@@ -343,8 +343,8 @@ CLOSE UNIT 40
     procSnippet = procSnippet + '''
   IHTFRQ 0 IEQFRQ 0 -
   TSTRUCT 298.0 FINALT 298.0 FIRSTT 298.0 -
-  CPT PCONst PREF 1.0 PGAMMA 20.0 PMASs 500 HOOVER -
-  REFT 298. TMASS 5000.0 -'''
+  CPT PCONst PREF 1.0 PGAMMA 20.0 PMASs 500 -
+  TBATH 298. -'''
   else:
     # in the gas phase
     procSnippet = procSnippet + '''
