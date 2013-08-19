@@ -681,6 +681,7 @@ def extractEnergy(trajFile):
     f.close()
   except IOError,e:
     print "I/O Error",e
+    print "File:",trajFile
     exit(1)
   for i in range(len(s)):
     if "ENER EXTERN>" in s[i]:
