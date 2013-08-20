@@ -408,6 +408,8 @@ def saveToFile(data, filename):
     pipe.close()
   except IOError, e:
     raise "I/O Error",e
+    print "Function: saveToFile",filename
+    exit(1)
   if args.remote:
     rmtChm.putFile(filename)
   return
@@ -460,6 +462,8 @@ def checkAbnormalTermination(charmmScript):
     f.close()
   except IOError, e:
     raise "I/O Error",e
+    print "Routine: checkAbnormalTermination",charmmScript
+    exit(1)
   normalFlag = False
   energyChangeFlag = False
   for i in range(len(s)):
@@ -485,6 +489,8 @@ def extractWindowEnergy(outFile):
     f.close()
   except IOError, e:
     raise "I/O Error",e
+    print "Routine: extractWindowEnergy",outFile
+    exit(1)
   for i in range(len(s)):
     line = s[i].split()
     if 'PERTRES>' in line and 'EPRTOT=' in line:
@@ -502,6 +508,8 @@ def checkTIConvergence(outFile):
     f.close()
   except IOError, e:
     raise "I/O Error",e
+    print "Routine: checkTIConvergence",outFile
+    exit(1)
   for i in range(len(s)):
     line = s[i].split()
     if 'DIFFLC' in line and len(line) == 3:
@@ -545,6 +553,8 @@ def scaleChargesInTop(lambda_current):
     f.close()
   except IOError, e:
     raise "I/O Error",e
+    print "Routine: scaleChargesInTop",lambda_current
+    exit(1)
   newTopFile = getScaleTopFile(lambda_current)
   f = open(newTopFile,'w')
   dualresi = -1
@@ -587,6 +597,7 @@ def scaleMTPInLpun(lambda_current):
     f.close()
   except IOError, e:
     print "I/O Error",e
+    print "Routine: scaleMTPInLpun",lambda_current
     exit(1)
   newTopFile = getScaleLpunFile(lambda_current)
   f = open(newTopFile,'w')
@@ -643,6 +654,7 @@ def extractEnergyDiff(trajFile1, trajFile2):
       f.close()
     except IOError, e:
       print "I/O Error",e  
+      print "Routine: extractEnergyDiff",trajFile1,trajFile2
       exit(1)
     for i in range(len(s)):
       if "ENER EXTERN>" in s[i]:
@@ -681,7 +693,7 @@ def extractEnergy(trajFile):
     f.close()
   except IOError,e:
     print "I/O Error",e
-    print "File:",trajFile
+    print "Routine: extractEnergy",trajFile
     exit(1)
   for i in range(len(s)):
     if "ENER EXTERN>" in s[i]:
