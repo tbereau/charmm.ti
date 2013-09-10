@@ -267,11 +267,11 @@ NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
   CUTNB 12.0  CTOFNB 11.0 CTONnb 10.0 -
   VSWITCH 
 '''
-    if sim == True:
-      solventSnippet2 += \
-'''CONS HMCM FORCE 5.0 WEIGH REFX 0. REFY 0. REFZ 0. -
-  SELECT SEGI SOLU END
-'''
+#     if sim == True:
+#       solventSnippet2 += \
+# '''CONS HMCM FORCE 5.0 WEIGH REFX 0. REFY 0. REFZ 0. -
+#   SELECT SEGI SOLU END
+# '''
   else:
     # in the gas phase. Turn on Langevin
     solventSnippet2 += "SCALAR FBETA SET 5. SELE ALL END"
