@@ -2,7 +2,7 @@
 
 # Initialize variables
 scriptDir=${0%/*}
-pyScriptName=$scriptDir/perform.ti.py
+pyScriptName=$scriptDir/perform-ti
 charmm="charmm"
 numproc=1
 PARFILES=()
@@ -16,7 +16,7 @@ lpun=
 nsteps=20000
 nequil=10000
 remote=
-SIMTYPES=("vdw" "pcsg" "mtp")
+SIMTYPES=("vdw" "pc" "mtp")
 lambda_i=0.0
 lambda_step=0.1
 lambda_f=1.0
