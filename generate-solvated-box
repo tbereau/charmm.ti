@@ -209,4 +209,4 @@ vmd < vmd.tmp.tcl > vmd.tmp.out || \
         echo "Error in VMD (vmd.tmp.out)" && exit 1
     }
 echo "Solute stored in solute.pdb"
-echo "Solvent stode in solvent.pdb"
+echo "Solvent stored in solvent.pdb"
