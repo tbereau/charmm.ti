@@ -203,8 +203,12 @@ def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True):
   # 'sim' flag: run either MD simulation or extract energy from trajectory.
   trjFile = getTrjFile(lambdai, lambdan, lambdaf)
   topSnippet = ''
-  topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
-      getScaleTopFile('%.6f' % 0.00)
+  if args.ti == 'pc':
+    topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
+      getScaleTopFile('%.6f' % 1.00)  
+  else:
+    topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
+        getScaleTopFile('%.6f' % 0.00)
   if args.top:
     for i in range(len(args.top)):
       topFile = args.top[i]
@@ -289,24 +293,11 @@ NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
     noPSSPSnippet = 'PSSP -'
   elif args.ti in ['pc','mtp']:
     addTopFiles = ''
-    if args.top:
-      for i in range(len(args.top)):
-        addTopFiles += 'READ RTF CARD APPEND NAME -\n %s\n' % args.top[i]
     rscaSnippet = \
 '''PERT SELE SEGI SOLU END
-DELETE ATOM SELE ALL END
-READ RTF CARD NAME -
- %s
-%s
-OPEN UNIT 10 READ CARD NAME %s
-READ SEQUENCE PDB UNIT 10
-GENERATE SOLU
-REWIND UNIT 10
-READ COOR PDB UNIT 10
-CLOSE UNIT 10
+SCALAR CHARGE SET 0. SELE SEGI SOLU END
 
-%s
-''' % (getScaleTopFile('%.6f' % 1.0), addTopFiles, args.slu, solventSnippet1)
+'''
     noPSSPSnippet = "NOPSSP"
   if args.ti == 'mtp':
     if sim == True:
@@ -386,7 +377,7 @@ CLOSE UNIT 10
 BOMLEV 0
 
 NBONDS NBXMOD 5 ATOM CDIEL EPS 1.0 SHIFT VATOM VDISTANCE -
-  VSWITCH CUTNB 12.0 CTOFNB 11.0 CTONNB 10. E14FAC 1.0
+  VSWITCH CUTNB 99.0 CTOFNB 98.0 CTONNB 97. E14FAC 1.0
 %s
 
 %s
@@ -897,8 +888,8 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
   if checkTIConvergence(outFile):
     lambdaVals['done'][index] = True
     lambdaVals['energy'][index] = extractWindowEnergy(outFile)
-    if args.ti == 'vdw' and not args.dual:
-      # TI for vdW is set up the wrong way: from lambda=1 to 0.
+    if args.ti in ['pc','vdw'] and not args.dual:
+      # TI for vdW,PC is set up the wrong way: from lambda=1 to 0.
       lambdaVals['energy'][index] *= -1.0
     if args.ti == 'mtp':
       lambdaVals['energy'][index] += mtpAddDG
