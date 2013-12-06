@@ -5,7 +5,7 @@
 #
 # Tristan BEREAU 12.06.2012
 
-[ -z $2 ] && echo "missing arguments: mol.top mol.pdb mol.par" && exit 1 
+[ -z $3 ] && echo "missing arguments: mol.top mol.pdb mol.par" && exit 1 
 
 top=$1
 pdb=$2
