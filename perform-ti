@@ -427,7 +427,7 @@ def runCHARMMScript(inpFile, outFile, simCounter,
   # Run/submit CHARMM script. Returns -1*(exit code) if we run it locally or job ID
   # if we submit it.
   retvalue = 0
-  if args.remote:
+  if args.remote and noMPI is False:
     # Check whether we've already submitted this script
     if inpFile in lambdaVals['submitted']:
       return 0, simCounter
