@@ -18,20 +18,20 @@ from briz import misc
 parser = argparse.ArgumentParser(description=
   'Generate, manage, and analyze TI calculations in CHARMM',
   epilog='Tristan BEREAU (2013)')
-parser.add_argument('--ti', dest='ti', type=str, required=True, 
+parser.add_argument('--ti', dest='ti', type=str, required=True,
                   choices=['vdw', 'pc', 'mtp'],
                   help='TI flag: either "vdw" or "elec"')
-parser.add_argument('--chm', dest='charmm', default='charmm', type=str, 
+parser.add_argument('--chm', dest='charmm', default='charmm', type=str,
                   help='CHARMM executable')
-parser.add_argument('--tps', dest='tps', type=str, 
+parser.add_argument('--tps', dest='tps', type=str,
                   help='Topology file for solute', required=True)
-parser.add_argument('--top', dest='top', type=str, action='append', 
+parser.add_argument('--top', dest='top', type=str, action='append',
                   help='Other topology file(s)')
 parser.add_argument('--par', dest='par', type=str, action='append',
                   help='Parameter file(s) for solute', required=True)
-parser.add_argument('--slu', dest='slu', type=str, 
+parser.add_argument('--slu', dest='slu', type=str,
                   help='PDB of the solute molecule', required=True)
-parser.add_argument('--slv', dest='slv', type=str, 
+parser.add_argument('--slv', dest='slv', type=str,
                   help='PDB of the solvent (ignore for gas phase)')
 parser.add_argument('--lpun', dest='lpun', type=str, action='append',
                   help='LPUN file of the solute molecule ' \
@@ -59,7 +59,7 @@ parser.add_argument('--back', dest='backward', action='store_true',
 parser.add_argument('--dual', dest='dual', type=str, nargs=3,
                   help='Dual topology turned on: alchemical transformation MOL1 -> MOL2). ' \
                   + 'Provide RESNAMEs of MOL1, MOL2, and DUAL. ')
-parser.add_argument('--pep', dest='peptide', action='store_true', 
+parser.add_argument('--pep', dest='peptide', action='store_true',
                   help='Adjusts CRYSTAL options for peptide solute')
 
 args = parser.parse_args()
@@ -117,7 +117,7 @@ if args.dual:
   print "# Exnihilated atom names:",dualExn
   if numGroup != 3:
     print "Error: need 3 GROUP statements in ", args.tps
-    exit(1) 
+    exit(1)
   if args.ti == 'pc':
     print "Dual topology for",args.ti,"currently not supported."
     exit(1)
@@ -185,7 +185,7 @@ if args.dual:
     print "#  %5d environment solute atom(s)" % len(dualAtId[0])
     print "#  %5d annihilated solute atom(s)" % len(dualAtId[1])
     print "#  %5d exnihilated solute atom(s)" % len(dualAtId[2])
-  
+
 
 print "# Parameters: nsteps=%d; nequil=%d" % (args.nsteps, args.nequil)
 
@@ -198,7 +198,7 @@ def die(arg):
   exit(1)
 
 def getTrjFile(lambdai, lambdan, lambdaf):
-  return "tmp.perform.ti.charmm.script.%.6f.%.6f.%.6f.%s.trj" % (lambdai, 
+  return "tmp.perform.ti.charmm.script.%.6f.%.6f.%.6f.%s.trj" % (lambdai,
     lambdan, lambdaf, args.ti)
 
 def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True):
@@ -207,7 +207,7 @@ def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True):
   topSnippet = ''
   if args.ti == 'pc':
     topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
-      getScaleTopFile('%.6f' % 1.00)  
+      getScaleTopFile('%.6f' % 1.00)
   else:
     topSnippet = 'READ RTF CARD        NAME -\n %s\n' % \
         getScaleTopFile('%.6f' % 0.00)
@@ -233,7 +233,7 @@ def generateCHARMMScript(lambdai, lambdan, lambdaf, nstep, nequil, sim=True):
   dualSnippet = ''
   if args.dual:
     parSnippet += 'BOMLEV -2\n'
-    dualSnippet = 'DEFINE ANN SELE -\n' 
+    dualSnippet = 'DEFINE ANN SELE -\n'
     for atom in range(len(dualAnn)):
       dualSnippet += '  ATOM SOLU 1 %s' % dualAnn[atom]
       if atom+1 < len(dualAnn):
@@ -264,7 +264,7 @@ CLOSE UNIT 10
     solventSnippet2 += \
 '''COOR STAT
 CALC BOXX = (?XMAX - ?XMIN -1.0)
-CRYSTAL DEFI CUBIC @BOXX @BOXX @BOXX 90. 90. 90. 
+CRYSTAL DEFI CUBIC @BOXX @BOXX @BOXX 90. 90. 90.
 CRYSTAL BUILD nope 0
 '''
     if args.peptide == True:
@@ -280,7 +280,7 @@ IMAGE BYSEG XCEN 0.0 YCEN 0.0 ZCEN 0.0 SELE SEGI SOLU END
 NBONDS ATOM EWALD PMEWALD KAPPA 0.32  -
   FFTX 32 FFTY 32 FFTZ 32 ORDER 6 -
   CUTNB 12.0  CTOFNB 11.0 CTONnb 10.0 -
-  VSWITCH 
+  VSWITCH
 '''
 #     if sim == True:
 #       solventSnippet2 += \
@@ -338,8 +338,8 @@ CLOSE UNIT 40
   NTRFRQ 100 -
   IPRFRQ 0 INBFRQ -1 IMGFRQ 250 -
   LSTART %s  LAMBDA %s  LSTOP %s  PSTART  %s -
-  PSTOP  %s  PSLOW LINCR %s %s -''' % (str(nstep), str('%.6f' % lambdai), 
-    str('%.6f' % lambdan), str('%.6f' % lambdaf), str(nequil), 
+  PSTOP  %s  PSLOW LINCR %s %s -''' % (str(nstep), str('%.6f' % lambdai),
+    str('%.6f' % lambdan), str('%.6f' % lambdaf), str(nequil),
     str(nstep), str('%.6f' % (lambdaf-lambdai)), noPSSPSnippet)
   if args.slv:
     procSnippet = procSnippet + '''
@@ -400,7 +400,7 @@ NBONDS NBXMOD 5 ATOM CDIEL EPS 1.0 SHIFT VATOM VDISTANCE -
 STOP
 '''
   return returnScript % (args.slu, topSnippet, parSnippet,
-    args.slu, dualSnippet, solventSnippet1, rscaSnippet, 
+    args.slu, dualSnippet, solventSnippet1, rscaSnippet,
     solventSnippet2, procSnippet, pressureSnippet, dcdSnippet)
 
 def saveToFile(data, filename):
@@ -422,18 +422,18 @@ def getSubName(simCounter):
 def getSubSubDir(lambdai, lambdan, lambdaf):
   return "%.6f.%.6f.%.6f.%s" % (lambdai, lambdan, lambdaf, args.ti)
 
-def runCHARMMScript(inpFile, outFile, simCounter, 
+def runCHARMMScript(inpFile, outFile, simCounter,
   dependID=0, description="", noMPI=False):
   # Run/submit CHARMM script. Returns -1*(exit code) if we run it locally or job ID
   # if we submit it.
   retvalue = 0
-  if args.remote and noMPI is False:
+  if args.remote:
     # Check whether we've already submitted this script
     if inpFile in lambdaVals['submitted']:
       return 0, simCounter
     # Generate submission script (part 1: calls charmm)
-    chmSubScript = rmtChm.generateCharmmJob(inpFile, outFile, 
-      otherInpDir=bucketDir, email=False)
+    chmSubScript = rmtChm.generateCharmmJob(inpFile, outFile,
+      otherInpDir=bucketDir, noMPI=noMPI, email=False)
     chmSubFile   = inpFile[:inpFile.rfind(".")] + ".sub"
     saveToFile(chmSubScript, chmSubFile)
     # Generate submission script (part 2: invokes qsub)
@@ -441,7 +441,7 @@ def runCHARMMScript(inpFile, outFile, simCounter,
     numProc      = args.numproc
     if noMPI:
       numProc      = 1
-    retvalue = rmtChm.submitJob(subName, numProc, 
+    retvalue = rmtChm.submitJob(subName, numProc,
       rmtChm.remdir + "/" + rmtChm.subsubdir + "/" + chmSubFile, dependID)
     lambdaVals['submitted'].append(inpFile)
     lambdaVals['jobID'][inpFile] = retvalue
@@ -591,7 +591,7 @@ def scaleMTPInLpun(lambda_current):
   # DUAL: Scale all charges in the following way:
   # group 1 (env) -> (1-l)*Q1 + l*Q2
   # group 2 (ann) -> (1-l)*Q
-  # group 3 (exn) -> l*Q  
+  # group 3 (exn) -> l*Q
   try:
     # Get the last lpun file: 0 in general, 2 for dual-topology method.
     f = open(args.lpun[-1],'r')
@@ -633,7 +633,7 @@ def scaleMTPInLpun(lambda_current):
   if args.remote:
     rmtChm.putFile(newTopFile)
   return
- 
+
 
 def getScaleTopFile(lambda_current):
   return "tmp.perform.ti." + args.tps[:args.tps.rfind('.')] + \
@@ -655,7 +655,7 @@ def extractEnergyDiff(trajFile1, trajFile2):
       s = f.readlines()
       f.close()
     except IOError, e:
-      print "I/O Error",e  
+      print "I/O Error",e
       print "Routine: extractEnergyDiff",trajFile1,trajFile2
       exit(1)
     for i in range(len(s)):
@@ -666,7 +666,7 @@ def extractEnergyDiff(trajFile1, trajFile2):
           exit(1)
     if len(curTrajEne) == 0:
       print "Error. No energy recorded in",curFile
-      exit(1)  
+      exit(1)
     trajEne.append(curTrajEne)
   if len(trajEne[0]) != len(trajEne[1]):
     print "Error. Trajectories have different numbers of energy data points."
@@ -789,7 +789,7 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
           if inpFile in lambdaVals['jobID']:
             del lambdaVals['jobID'][inpFile]
           if inpFile in lambdaVals['submitted']:
-            lambdaVals['submitted'].remove(inpFile)        
+            lambdaVals['submitted'].remove(inpFile)
   saveToFile(inpScript, inpFile)
   jobReturn, simCounter = runCHARMMScript(inpFile, outFile, simCounter)
   if jobReturn < 0:
@@ -807,7 +807,7 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
       if i == 2:
         lambdaCurIsI = False
       # Run analysis script
-      inpReadScript = generateCHARMMScript(lambda_i, lambda_n, lambda_f, nstep, 
+      inpReadScript = generateCHARMMScript(lambda_i, lambda_n, lambda_f, nstep,
                       nequil, sim=False)
       inpReadFile   = 'tmp.perform.ti.charmm.script.'+ str('%.6f' % lambda_i)+ \
                       '.' + str("%.6f" % lambda_n) + '.' + str('%.6f' % lambda_f) \
@@ -823,13 +823,13 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
       if args.remote:
         # Don't submit new run if the file is stored locally
         if rmtChm.localFileExists(outReadFile):
-          if inpReadFile not in lambdaVals['submitted']:  
+          if inpReadFile not in lambdaVals['submitted']:
             lambdaVals['submitted'].append(inpReadFile)
         else:
           # Check if the run exists on the remote server
           if rmtChm.consistentAndGet(outReadFile):
             # No need for a new simulation
-            if inpReadFile not in lambdaVals['submitted']:  
+            if inpReadFile not in lambdaVals['submitted']:
               lambdaVals['submitted'].append(inpReadFile)
           else:
             # We'll need a simulation. Don't make it depend on previous
@@ -845,7 +845,7 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
               if rmtChm.trjfileConsistent(trjFile):
                 rmtChm.putFile(trjFile)
                 jobReturn = 0
-      jobTmpReturn, simCounter = runCHARMMScript(inpReadFile, outReadFile, 
+      jobTmpReturn, simCounter = runCHARMMScript(inpReadFile, outReadFile,
         simCounter, dependID=jobReturn, noMPI=True)
     for i in numSim:
       if args.remote:
@@ -869,7 +869,7 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
                   rmtChm.getFile(trjFile)
         if allFilesFinished == False:
           return False, simCounter
-        lambdaVals['completed'].append(outFile)  
+        lambdaVals['completed'].append(outFile)
     if len(numSim) == 2:
       tempFile = extractEnergyDiff(outReadFiles[0], outReadFiles[1])
       # outFile is now tempFile--it contains the free energy result.
@@ -895,7 +895,7 @@ def runLambdaInterval(index, nstep, nequil, simCounter):
             return False, simCounter
       lambdaVals['completed'].append(outFile)
   if args.remote:
-    rmtChm.delRemoteSubSubDir()  
+    rmtChm.delRemoteSubSubDir()
   if checkTIConvergence(outFile):
     lambdaVals['done'][index] = True
     lambdaVals['energy'][index] = extractWindowEnergy(outFile)
@@ -916,7 +916,7 @@ def allTIDone():
   # Check whether all TI simulations have been performed successfully. Return
   # True if that's the case. Otherwise, return also the index of the first
   # simulation that still needs to be done.
-  for i in range(len(lambdaVals['done'])): 
+  for i in range(len(lambdaVals['done'])):
     if lambdaVals['done'][i] is False:
       return False
   # All done, return True
@@ -926,7 +926,7 @@ def allTIDone():
 
 if args.remote:
   # Connect to the server
-  rmtChm = charmm.RunCharmmRemotely(server=args.remote, 
+  rmtChm = charmm.RunCharmmRemotely(server=args.remote,
     subdir=args.subdir)
   # Copy some files to subfolder 'bucket'
   rmtChm.setSubSubDir(bucketDir)
@@ -993,7 +993,7 @@ while allDone is False:
   newAnalysis = False
   for simIndex in range(len(lambdaVals['done'])):
     if lambdaVals['done'][simIndex] is False:
-      status, simCounter = runLambdaInterval(index=simIndex, nstep=args.nsteps, 
+      status, simCounter = runLambdaInterval(index=simIndex, nstep=args.nsteps,
         nequil=args.nequil, simCounter=simCounter)
       if status == True:
         newAnalysis = True
@@ -1016,7 +1016,7 @@ for i in range(len(lambdaVals['initial'])):
     lambdaVals['energy'][i])
   totalEnergy += lambdaVals['energy'][i]
 print "##############################"
-print "# %.6f - %.6f: %9.5f kcal/mol" % (lambdaVals['initial'][0], 
+print "# %.6f - %.6f: %9.5f kcal/mol" % (lambdaVals['initial'][0],
   lambdaVals['final'][-1], totalEnergy)
 
 # Remove remote directory
